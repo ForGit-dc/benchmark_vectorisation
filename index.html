@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Benchmark des modèles de vectorisation &middot; Opsci</title>
+<meta name="description" content="Évaluation de 20 modèles d'embedding pour la détection de narratifs, sur un catalogue de 102 claims.">
+<style>
+:root{--navy:#12496B;--navy2:#1B6A9B;--ambre:#C2410C;--vert:#0E7C66;--encre:#111827;
+--gris:#586274;--gris2:#8A93A3;--trait:#DFE4EA;--fond:#F4F6F9;--carte:#FFFFFF;--doux:#EDF1F6;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+color:var(--encre);background:var(--fond);line-height:1.68;font-size:16.5px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:880px;margin:0 auto;padding:0 26px}
+/* Les blocs larges (tableaux, figures, sommaire) debordent la colonne de texte et se
+   recentrent sur la fenetre : le texte garde une longueur de ligne lisible, et il n'y a
+   plus de bande vide a droite. */
+.large{width:min(1180px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+/* ---- bandeau de marque */
+.marque{background:#0B2F47;color:#fff;padding:11px 0;font-size:.87rem}
+.marque .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.marque a{color:#fff;text-decoration:none;font-weight:700;letter-spacing:.04em;display:inline-flex;
+align-items:center;gap:9px}
+.marque a:hover{text-decoration:underline}
+.marque .pastille{width:9px;height:9px;border-radius:50%;background:#F59E0B;display:inline-block}
+.marque .date{opacity:.7}
+/* ---- heros */
+header.hero{background:linear-gradient(155deg,#0B2F47 0%,var(--navy) 48%,var(--navy2) 100%);
+color:#fff;padding:58px 0 50px}
+header.hero h1{font-size:2.45rem;line-height:1.14;margin:0 0 14px;font-weight:800;letter-spacing:-.022em}
+header.hero .sub{font-size:1.12rem;opacity:.94;margin:0 0 32px}
+header.hero .meta{font-size:.92rem;opacity:.85;margin-top:28px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(212px,1fr));gap:13px;width:min(1180px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+.kpi{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.24);border-radius:11px;padding:15px 17px}
+.kpi b{display:block;font-size:2rem;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+.kpi span{display:block;font-size:.82rem;opacity:.9;margin-top:4px;line-height:1.45}
+/* ---- sections */
+section{padding:52px 0;overflow:hidden}
+section:nth-of-type(even){background:var(--carte)}
+h2{font-size:1.68rem;font-weight:750;margin:0 0 8px;letter-spacing:-.015em;color:var(--navy);
+display:flex;align-items:baseline;gap:12px}
+h2 .num{color:var(--ambre);font-weight:800;font-size:1.05rem;letter-spacing:.06em;
+background:#FFF1E8;padding:3px 9px;border-radius:6px}
+h3{font-size:1.16rem;font-weight:750;margin:36px 0 10px;color:var(--encre);
+padding-left:14px;border-left:4px solid var(--ambre)}
+h3.ok{border-left-color:var(--vert)}
+h3.info{border-left-color:var(--navy)}
+h4{font-size:.98rem;font-weight:700;margin:22px 0 6px;color:var(--navy)}
+p{margin:0 0 15px}
+.chapo{font-size:1.06rem;color:var(--gris);margin-bottom:26px}
+/* ---- tableaux */
+.tbl{background:var(--carte);border:1px solid var(--trait);border-radius:11px;overflow:auto;margin:22px 0;width:min(1180px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+section:nth-of-type(even) .tbl{background:var(--fond)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th{background:var(--doux);text-align:left;padding:11px 12px;font-weight:700;font-size:.76rem;
+text-transform:uppercase;letter-spacing:.045em;color:var(--gris);border-bottom:2px solid var(--trait);white-space:nowrap}
+td{padding:10px 12px;border-bottom:1px solid var(--trait);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.prod td{background:#E8F1FA;font-weight:700}
+tr.total td{background:var(--doux);font-weight:800}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.fort{color:var(--ambre);font-weight:800}
+.tag{display:inline-block;font-size:.69rem;font-weight:700;padding:2px 8px;border-radius:99px;
+text-transform:uppercase;letter-spacing:.045em;white-space:nowrap}
+.tag.api{background:#DBEAFE;color:#1E40AF}.tag.local{background:#D1FAE5;color:#065F46}
+.tag.ia{background:#FEF3C7;color:#92400E}.tag.prod{background:#E0E7FF;color:#3730A3}
+/* ---- encadres */
+.enc{border-left:4px solid var(--ambre);background:#FFF7ED;padding:15px 19px;border-radius:0 9px 9px 0;margin:20px 0}
+.enc.info{border-color:var(--navy);background:#EFF6FF}
+.enc.ok{border-color:var(--vert);background:#ECFDF5}
+.enc p:last-child{margin-bottom:0}
+.enc b{color:inherit}
+details{border:1px solid var(--trait);border-radius:10px;margin:15px 0;background:var(--carte)}
+section:nth-of-type(even) details{background:var(--fond)}
+details[open]{box-shadow:0 1px 4px rgba(15,32,50,.07)}
+summary{cursor:pointer;padding:14px 18px;font-weight:650;font-size:.94rem;color:var(--navy);
+list-style:none;display:flex;align-items:center;gap:10px}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+";display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+border-radius:6px;background:var(--navy);color:#fff;font-weight:800;font-size:.86rem;flex:0 0 auto}
+details[open] summary::before{content:"\2212"}
+.det-corps{padding:0 18px 18px}
+/* ---- cartes */
+.grille{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:16px;margin:22px 0;width:min(1180px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+.carte{border:1px solid var(--trait);border-radius:11px;padding:17px 19px;background:var(--carte)}
+section:nth-of-type(even) .carte{background:var(--fond)}
+.carte h4{margin:0 0 8px}
+.carte .gros{font-size:1.9rem;font-weight:800;color:var(--navy);line-height:1.1;letter-spacing:-.02em}
+.carte .pt{font-size:.85rem;color:var(--gris);margin:6px 0 0}
+.cite{font-size:.88rem;background:var(--doux);border-radius:8px;padding:12px 14px;margin:9px 0;
+border-left:3px solid var(--gris2)}
+.cite.bon{border-left-color:var(--vert);background:#ECFDF5}
+.cite.mauvais{border-left-color:#DC2626;background:#FEF2F2}
+/* ---- figures */
+.fig{margin:26px 0;border:1px solid var(--trait);border-radius:11px;padding:20px;background:var(--carte);position:relative;width:min(1180px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+section:nth-of-type(even) .fig{background:var(--fond)}
+.fig figcaption{margin-bottom:12px}
+.fig figcaption b{display:block;font-size:1rem}
+.fig figcaption span{display:block;font-size:.85rem;color:var(--gris);margin-top:3px}
+.fig .aide{font-size:.78rem;color:var(--gris2);margin-top:9px;font-style:italic}
+svg{width:100%;height:auto;display:block;overflow:visible}
+.lbl{font-size:11.5px;fill:var(--encre)}
+.val{font-size:11.5px;fill:var(--gris);font-variant-numeric:tabular-nums}
+.axe{font-size:11px;fill:var(--gris)}
+.axe-t{font-size:11px;fill:var(--gris);font-weight:700;letter-spacing:.06em}
+.pt-lab{font-size:11.5px;fill:var(--encre)}
+[data-info]{cursor:pointer}
+[data-info]:hover{filter:brightness(1.12)}
+.bulle{position:absolute;pointer-events:none;background:#0B2F47;color:#fff;padding:10px 13px;
+border-radius:8px;font-size:.82rem;line-height:1.5;box-shadow:0 6px 20px rgba(11,47,71,.28);
+opacity:0;transition:opacity .12s;max-width:290px;z-index:20}
+.bulle b{color:#FBBF24}
+.bulle.on{opacity:1}
+code{background:var(--doux);padding:2px 6px;border-radius:4px;font-size:.87em;font-family:ui-monospace,Menlo,monospace}
+.form{background:#0B2F47;color:#E4ECF3;padding:16px 19px;border-radius:10px;
+font-family:ui-monospace,Menlo,monospace;font-size:.87rem;overflow-x:auto;margin:16px 0;line-height:1.85}
+.form .c{color:#7DD3FC;font-weight:700}
+nav.som{background:var(--carte);border:1px solid var(--trait);border-radius:12px;padding:22px 26px;margin:30px 0;width:min(1180px,calc(100vw - 48px));margin-left:50%;transform:translateX(-50%)}
+nav.som ol{margin:0;padding-left:20px;columns:2;column-gap:34px}
+nav.som li{margin:5px 0;font-size:.92rem}
+nav.som a{color:var(--navy);text-decoration:none}
+nav.som a:hover{text-decoration:underline}
+footer{background:#0B2F47;color:#C7D3DE;padding:38px 0;font-size:.87rem}
+footer a{color:#fff}
+footer p{max-width:82ch}
+ul.propre{margin:13px 0;padding-left:22px}
+ul.propre li{margin:8px 0}
+.pas{display:flex;gap:15px;align-items:flex-start;margin:17px 0}
+.pas .no{flex:0 0 32px;height:32px;border-radius:50%;background:var(--navy);color:#fff;
+display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem}
+.pas .txt{flex:1}.pas .txt b{display:block;margin-bottom:3px}
+@media(max-width:760px){nav.som ol{columns:1}header.hero h1{font-size:1.9rem}.kpi b{font-size:1.65rem}
+table{font-size:.83rem}th,td{padding:8px 9px}}
+
+@media(max-width:1000px){
+.tbl,.fig,nav.som,.grille,.kpis,.large{width:auto;margin-left:0;transform:none}
+}
+
+/* ENTETE : mise en page asymetrique, le visuel porte le propos, pas quatre cartes identiques */
+header.hero{padding:0}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,.98fr);gap:56px;
+align-items:center;padding:56px 0 46px}
+.hero-txt .oeil{font-family:ui-monospace,Menlo,monospace;font-size:.71rem;letter-spacing:.19em;
+text-transform:uppercase;color:#FBBF24;margin:0 0 18px;font-weight:700}
+header.hero h1{font-size:clamp(2.1rem,3.8vw,3.1rem);line-height:1.04;margin:0 0 20px;
+font-weight:800;letter-spacing:-.03em}
+header.hero h1 em{font-style:normal;color:#FBBF24}
+.hero-txt .intro{font-size:1.08rem;line-height:1.55;opacity:.94;margin:0 0 26px;max-width:38ch}
+.hero-txt .verdict{border-left:3px solid #FBBF24;padding:3px 0 3px 18px;max-width:44ch}
+.hero-txt .verdict b{display:block;font-size:1.04rem;margin-bottom:4px}
+.hero-txt .verdict span{font-size:.93rem;opacity:.84}
+/* le visuel : 102 carres, 1 bon, 5 retenus */
+.scene{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:24px 26px 22px}
+.scene .titre{font-family:ui-monospace,Menlo,monospace;font-size:.68rem;letter-spacing:.16em;
+text-transform:uppercase;opacity:.7;margin:0 0 6px}
+.scene .sst{font-size:.92rem;line-height:1.5;opacity:.93;margin:0 0 18px}
+.scene .sst b{color:#FBBF24}
+.aiguille .leg{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;fill:rgba(255,255,255,.72)}
+.scene .pied{font-family:ui-monospace,Menlo,monospace;font-size:.66rem;letter-spacing:.12em;
+text-transform:uppercase;opacity:.55;margin:16px 0 0;border-top:1px solid rgba(255,255,255,.15);padding-top:11px}
+/* les chiffres cles : une bande reglee, pas des boites */
+.bande{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(255,255,255,.2);
+padding-bottom:46px}
+.bande div{padding:22px 24px 0 0;border-right:1px solid rgba(255,255,255,.16)}
+.bande div:last-child{border-right:0;padding-right:0}
+.bande b{display:block;font-family:ui-monospace,Menlo,monospace;font-size:1.95rem;font-weight:700;
+letter-spacing:-.04em;line-height:1}
+.bande b sup{font-size:.5em}
+.bande em{display:block;font-style:normal;font-family:ui-monospace,Menlo,monospace;font-size:.65rem;
+letter-spacing:.14em;text-transform:uppercase;color:#FBBF24;margin:11px 0 5px;font-weight:700}
+.bande span{display:block;font-size:.81rem;opacity:.82;line-height:1.45}
+@media(max-width:980px){.hero-grid{grid-template-columns:1fr;gap:34px;padding:40px 0 34px}
+.bande{grid-template-columns:repeat(2,1fr)}
+.bande div{border-right:0;border-bottom:1px solid rgba(255,255,255,.16);padding-bottom:18px}}
+
+.source{font-family:ui-monospace,Menlo,monospace;font-size:.72rem;letter-spacing:.08em;
+text-transform:uppercase;color:var(--gris);background:var(--doux);border-left:3px solid var(--navy);
+padding:7px 12px;margin:18px 0 -8px;display:inline-block;border-radius:0 4px 4px 0}
+.source b{color:var(--navy)}
+.source.autre{border-left-color:var(--ambre)}
+.source.autre b{color:var(--ambre)}
+</style></head>
+<body><div class="marque"><div class="wrap">
+<a href="https://opsci.ai" target="_blank" rel="noopener"><span class="pastille"></span>OPSCI</a>
+<span class="date">Benchmark interne &middot; 12/08/2026</span>
+</div></div><header class="hero"><div class="wrap">
+<div class="hero-grid">
+<div class="hero-txt">
+<p class="oeil">Étape 1 du pipeline &middot; vectorisation</p>
+<h1>Retrouver <em>1 claim</em> parmi 102,<br>en n'en proposant que 5.</h1>
+<p class="intro">C'est tout le travail de l'embedding. S'il échoue, le LLM qui suit ne peut rien rattraper :
+il ne verra jamais le bon claim.</p>
+<div class="verdict"><b>Notre modèle y arrive 974 fois sur 1 000.</b>
+<span>20 modèles comparés, dont les sorties 2026 et les API d'OpenAI et de Mistral.
+Aucun ne justifie d'en changer.</span></div>
+</div>
+<div class="scene">
+<p class="titre">Le problème, en une image</p>
+<p class="sst">Chaque carré est un claim du catalogue. L'embedding n'en retient que <b>5</b>.
+Le bon claim doit être dedans, sinon il est perdu pour de bon.</p>
+<svg viewBox="0 0 544 258" class="aiguille"><rect x="0" y="34" width="26" height="26" fill="#E2DED6"/><rect x="32" y="34" width="26" height="26" fill="#E2DED6"/><rect x="64" y="34" width="26" height="26" fill="#E2DED6"/><rect x="96" y="34" width="26" height="26" fill="#E2DED6"/><rect x="128" y="34" width="26" height="26" fill="#E2DED6"/><rect x="160" y="34" width="26" height="26" fill="#E2DED6"/><rect x="192" y="34" width="26" height="26" fill="#E2DED6"/><rect x="224" y="34" width="26" height="26" fill="#E2DED6"/><rect x="256" y="34" width="26" height="26" fill="#E2DED6"/><rect x="288" y="34" width="26" height="26" fill="none" stroke="#12181F" stroke-width="1.6"/><rect x="320" y="34" width="26" height="26" fill="#E2DED6"/><rect x="352" y="34" width="26" height="26" fill="#E2DED6"/><rect x="384" y="34" width="26" height="26" fill="#E2DED6"/><rect x="416" y="34" width="26" height="26" fill="#E2DED6"/><rect x="448" y="34" width="26" height="26" fill="#E2DED6"/><rect x="480" y="34" width="26" height="26" fill="#E2DED6"/><rect x="512" y="34" width="26" height="26" fill="#E2DED6"/><rect x="0" y="66" width="26" height="26" fill="#E2DED6"/><rect x="32" y="66" width="26" height="26" fill="#E2DED6"/><rect x="64" y="66" width="26" height="26" fill="#E2DED6"/><rect x="96" y="66" width="26" height="26" fill="#E2DED6"/><rect x="128" y="66" width="26" height="26" fill="#E2DED6"/><rect x="160" y="66" width="26" height="26" fill="#E2DED6"/><rect x="192" y="66" width="26" height="26" fill="#E2DED6"/><rect x="224" y="66" width="26" height="26" fill="#E2DED6"/><rect x="256" y="66" width="26" height="26" fill="#E2DED6"/><rect x="288" y="66" width="26" height="26" fill="#E2DED6"/><rect x="320" y="66" width="26" height="26" fill="#E2DED6"/><rect x="352" y="66" width="26" height="26" fill="#E2DED6"/><rect x="384" y="66" width="26" height="26" fill="#E2DED6"/><rect x="416" y="66" width="26" height="26" fill="#E2DED6"/><rect x="448" y="66" width="26" height="26" fill="#E2DED6"/><rect x="480" y="66" width="26" height="26" fill="#E2DED6"/><rect x="512" y="66" width="26" height="26" fill="#E2DED6"/><rect x="0" y="98" width="26" height="26" fill="#E2DED6"/><rect x="32" y="98" width="26" height="26" fill="#E2DED6"/><rect x="64" y="98" width="26" height="26" fill="#E2DED6"/><rect x="96" y="98" width="26" height="26" fill="#D8420E"/><rect x="92" y="94" width="34" height="34" fill="none" stroke="#D8420E" stroke-width="1.5"/><rect x="128" y="98" width="26" height="26" fill="#E2DED6"/><rect x="160" y="98" width="26" height="26" fill="#E2DED6"/><rect x="192" y="98" width="26" height="26" fill="#E2DED6"/><rect x="224" y="98" width="26" height="26" fill="#E2DED6"/><rect x="256" y="98" width="26" height="26" fill="#E2DED6"/><rect x="288" y="98" width="26" height="26" fill="#E2DED6"/><rect x="320" y="98" width="26" height="26" fill="#E2DED6"/><rect x="352" y="98" width="26" height="26" fill="#E2DED6"/><rect x="384" y="98" width="26" height="26" fill="#E2DED6"/><rect x="416" y="98" width="26" height="26" fill="#E2DED6"/><rect x="448" y="98" width="26" height="26" fill="#E2DED6"/><rect x="480" y="98" width="26" height="26" fill="#E2DED6"/><rect x="512" y="98" width="26" height="26" fill="#E2DED6"/><rect x="0" y="130" width="26" height="26" fill="#E2DED6"/><rect x="32" y="130" width="26" height="26" fill="none" stroke="#12181F" stroke-width="1.6"/><rect x="64" y="130" width="26" height="26" fill="#E2DED6"/><rect x="96" y="130" width="26" height="26" fill="#E2DED6"/><rect x="128" y="130" width="26" height="26" fill="#E2DED6"/><rect x="160" y="130" width="26" height="26" fill="#E2DED6"/><rect x="192" y="130" width="26" height="26" fill="#E2DED6"/><rect x="224" y="130" width="26" height="26" fill="#E2DED6"/><rect x="256" y="130" width="26" height="26" fill="#E2DED6"/><rect x="288" y="130" width="26" height="26" fill="#E2DED6"/><rect x="320" y="130" width="26" height="26" fill="#E2DED6"/><rect x="352" y="130" width="26" height="26" fill="#E2DED6"/><rect x="384" y="130" width="26" height="26" fill="#E2DED6"/><rect x="416" y="130" width="26" height="26" fill="#E2DED6"/><rect x="448" y="130" width="26" height="26" fill="#E2DED6"/><rect x="480" y="130" width="26" height="26" fill="none" stroke="#12181F" stroke-width="1.6"/><rect x="512" y="130" width="26" height="26" fill="#E2DED6"/><rect x="0" y="162" width="26" height="26" fill="#E2DED6"/><rect x="32" y="162" width="26" height="26" fill="#E2DED6"/><rect x="64" y="162" width="26" height="26" fill="#E2DED6"/><rect x="96" y="162" width="26" height="26" fill="#E2DED6"/><rect x="128" y="162" width="26" height="26" fill="#E2DED6"/><rect x="160" y="162" width="26" height="26" fill="#E2DED6"/><rect x="192" y="162" width="26" height="26" fill="#E2DED6"/><rect x="224" y="162" width="26" height="26" fill="#E2DED6"/><rect x="256" y="162" width="26" height="26" fill="#E2DED6"/><rect x="288" y="162" width="26" height="26" fill="#E2DED6"/><rect x="320" y="162" width="26" height="26" fill="#E2DED6"/><rect x="352" y="162" width="26" height="26" fill="#E2DED6"/><rect x="384" y="162" width="26" height="26" fill="#E2DED6"/><rect x="416" y="162" width="26" height="26" fill="#E2DED6"/><rect x="448" y="162" width="26" height="26" fill="#E2DED6"/><rect x="480" y="162" width="26" height="26" fill="#E2DED6"/><rect x="512" y="162" width="26" height="26" fill="#E2DED6"/><rect x="0" y="194" width="26" height="26" fill="#E2DED6"/><rect x="32" y="194" width="26" height="26" fill="#E2DED6"/><rect x="64" y="194" width="26" height="26" fill="#E2DED6"/><rect x="96" y="194" width="26" height="26" fill="none" stroke="#12181F" stroke-width="1.6"/><rect x="128" y="194" width="26" height="26" fill="#E2DED6"/><rect x="160" y="194" width="26" height="26" fill="#E2DED6"/><rect x="192" y="194" width="26" height="26" fill="#E2DED6"/><rect x="224" y="194" width="26" height="26" fill="#E2DED6"/><rect x="256" y="194" width="26" height="26" fill="#E2DED6"/><rect x="288" y="194" width="26" height="26" fill="#E2DED6"/><rect x="320" y="194" width="26" height="26" fill="#E2DED6"/><rect x="352" y="194" width="26" height="26" fill="#E2DED6"/><rect x="384" y="194" width="26" height="26" fill="#E2DED6"/><rect x="416" y="194" width="26" height="26" fill="#E2DED6"/><rect x="448" y="194" width="26" height="26" fill="#E2DED6"/><rect x="480" y="194" width="26" height="26" fill="#E2DED6"/><rect x="512" y="194" width="26" height="26" fill="#E2DED6"/><rect x="0" y="236" width="26" height="11" fill="#D8420E"/><text x="35" y="246" class="leg">le bon claim</text><rect x="128" y="236" width="26" height="11" fill="none" stroke="#12181F" stroke-width="1.6"/><text x="163" y="246" class="leg">les 5 retenus par l'embedding</text><rect x="352" y="236" width="26" height="11" fill="#E2DED6"/><text x="387" y="246" class="leg">les 97 ecartes</text></svg>
+<p class="pied">Catalogue réel du test 3 &middot; 102 claims</p>
+</div>
+</div>
+<div class="bande">
+<div><b>0,974</b><em>Rappel@5</em><span>Du modèle de production, sur les 102 claims.<br><b style="color:#FBBF24">0,926</b> une fois appliqué le filtre de similarité actuel, qui écarte 13 narratifs pourtant retrouvés.</span></div>
+<div><b>5<sup>e</sup> / 20</b><em>Classement</em><span>À 0,011 du premier, qui est une API externe, et pour la plus petite taille du haut de tableau</span></div>
+<div><b>0,57 Md</b><em>Paramètres</em><span>Contre 3,75 Md pour le plus gros modèle testé</span></div>
+<div><b>271</b><em>Posts annotés</em><span>Sur 3 sujets et 2 langues, 62 hors-narratif écartés</span></div>
+</div>
+</div></header><section id="resume"><div class="wrap">
+<h2><span class="num">00</span>Résumé pour décision</h2>
+<div class="grille">
+<div class="carte"><h4>Faut-il changer de modèle&nbsp;?</h4><div class="gros">Non</div>
+<p class="pt">Le modèle actuel est 5<sup>e</sup> sur 20, à 0,011 du premier
+qui est une API externe. Aucun écart ne justifie de revectoriser toute la base.</p></div>
+<div class="carte"><h4>L'embedding bride-t-il le pipeline&nbsp;?</h4><div class="gros">Non</div>
+<p class="pt">0,974 de rappel@5 contre 0,919 pour le meilleur reranker LLM.
+La marge existe au-dessus, le goulot d'étranglement est ailleurs.</p></div>
+<div class="carte"><h4>Où est le vrai levier&nbsp;?</h4><div class="gros">Le rejet</div>
+<p class="pt">La similarité seule classe déjà mieux que le reranker de production
+(0,892 contre 0,854). Ce que le LLM apporte, c'est de savoir dire
+qu'aucun claim ne convient.</p></div>
+<div class="carte"><h4>Que faire tout de suite&nbsp;?</h4><div class="gros">Baisser le seuil</div><p class="pt">Le filtre de similarité est réglé à 0,70. Le descendre à 0,60 fait passer le rappel de 0,926 à 0,974 et récupère 13 narratifs aujourd'hui perdus. Un paramètre, aucun développement.</p></div>
+</div>
+<nav class="som"><ol>
+<li><a href="#contexte">Pourquoi cette mesure existe</a></li>
+<li><a href="#donnees">Les données</a></li>
+<li><a href="#protocole">Le protocole et le problème résolu</a></li>
+<li><a href="#distracteurs">Les distracteurs et leur validation</a></li>
+<li><a href="#metriques">Comment les résultats sont chiffrés</a></li>
+<li><a href="#resultats">Les résultats</a></li>
+<li><a href="#conclusions">Ce que ces chiffres changent</a></li>
+<li><a href="#limites">Limites et contrôles</a></li>
+</ol></nav></div></section><section id="contexte"><div class="wrap">
+<h2><span class="num">01</span>Pourquoi cette mesure existe</h2>
+<p class="chapo">Le pipeline de détection de narratifs fonctionne en deux temps. Cette étude mesure le premier,
+parce qu'il fixe une limite que le second ne peut pas franchir.</p>
+<div class="pas"><div class="no">1</div><div class="txt"><b>L'embedding filtre</b>
+Un modèle de vectorisation transforme le post et tous les claims en vecteurs, puis retient les
+<b>5 claims les plus proches</b> en similarité cosinus.</div></div>
+<div class="pas"><div class="no">2</div><div class="txt"><b>Le reranker tranche</b>
+Un LLM reçoit le post et ces 5 candidats, et choisit lequel correspond, ou répond qu'aucun ne convient.</div></div>
+<div class="enc"><p><b>La conséquence est mécanique.</b> Si le bon claim n'est pas dans les 5 retenus par
+l'embedding, aucun LLM ne peut le retrouver : il ne le voit jamais. Le taux de présence du bon claim dans ces 5,
+appelé <b>rappel@5</b>, est donc le <b>plafond absolu de tout le pipeline</b>.</p></div>
+<p>La question posée était simple : ce plafond bride-t-il le système ? Le meilleur reranker du benchmark LLM
+atteint 0,919 de classification. Si le rappel@5 valait la même chose, ce reranker serait
+déjà au maximum théorique et tout l'écart entre les meilleurs LLM ne serait que du bruit de mesure.</p>
+</div></section><section id="donnees"><div class="wrap">
+<h2><span class="num">02</span>Les données</h2>
+<p class="chapo">Trois jeux annotés à la main, sur trois sujets sans rapport entre eux, dans deux langues.
+Chaque post y est rattaché à un claim, ou étiqueté comme n'exprimant aucun narratif.</p>
+<div class="tbl"><table><thead><tr><th>Jeu</th><th>Langue</th><th class="n">Posts</th><th class="n">Porteurs</th>
+<th class="n">Hors-narratif</th><th class="n">Claims d'origine</th><th class="n">Claims ajoutés</th>
+<th class="n">Catalogue évalué</th></tr></thead><tbody><tr><td><b>NATO/Iran</b></td><td>anglais</td>
+<td class="n">57</td><td class="n">52</td><td class="n">5</td>
+<td class="n">5</td><td class="n">33</td>
+<td class="n fort">38</td></tr><tr><td><b>Immigration</b></td><td>français</td>
+<td class="n">165</td><td class="n">134</td><td class="n">31</td>
+<td class="n">8</td><td class="n">20</td>
+<td class="n fort">28</td></tr><tr><td><b>Retraites</b></td><td>français</td>
+<td class="n">111</td><td class="n">85</td><td class="n">26</td>
+<td class="n">6</td><td class="n">30</td>
+<td class="n fort">36</td></tr>
+<tr class="total"><td>Total</td><td>2 langues</td><td class="n">333</td>
+<td class="n">271</td><td class="n">62</td>
+<td class="n">19</td><td class="n">83</td>
+<td class="n fort" style="font-size:1.08rem">102</td></tr></tbody></table></div>
+<div class="enc"><p><b>Le chiffre qui compte est le dernier : 102 claims.</b> Les jeux annotés
+n'en contenaient que 19, ce qui est bien trop peu pour mesurer quoi que ce soit :
+on demande au modèle d'en retenir 5. Le catalogue a donc été <b>élargi à 102 claims</b> pour
+s'approcher des conditions de production, où une analyse réelle en propose de 100 à 700.
+<b>Tous les résultats de cette page sont mesurés sur ces 102 claims</b>, pas sur
+19. La section 04 explique comment ils ont été ajoutés et validés.</p></div>
+<div class="enc info"><p><b>Seuls les 271 posts porteurs entrent dans la mesure.</b>
+Les 62 posts hors-narratif n'ont pas de bonne réponse à retrouver : l'embedding leur rend
+toujours ses 5 plus proches claims, quels qu'ils soient. Le rappel n'est pas défini pour eux.</p></div>
+<details><summary>Exemples réels du jeu NATO/Iran, et ses 5 claims</summary>
+<div class="det-corps"><h4>Un post porteur d'un narratif</h4>
+<div class="cite">Turkey remembered NATO now that she is afraid of whats happening in the Middle East and because she knows she is next after Iran.</div>
+<div class="cite bon"><b>Claim attendu :</b> Turkey is an unreliable NATO ally that sides with Iran, promotes Islamist interests, and undermines the Western alliance.</div>
+<h4>Un post étiqueté hors-narratif</h4><div class="cite mauvais">NATO members know that Donald Trump would not value their contribution if they became involved in the Strait of Hormuz, Anne Applebaum argues: “What you’re hearing from America’s European allies is not cowardice. It’s a calculation.” Read the full article here:</div>
+<h4>Les 5 claims de référence</h4>
+<ul class="propre" style="font-size:.88rem"><li>Europe freeloads off American security and the Iran crisis has exposed NATO as a one-sided alliance that no longer serves US interests.</li><li>Turkey is an unreliable NATO ally that sides with Iran, promotes Islamist interests, and undermines the Western alliance.</li><li>Israel is driving an illegitimate, self-serving war against Iran, dragging in or backed by the US and NATO.</li><li>Trump acts like a mafia boss threatening Europe with NATO withdrawal to force them into his disastrous Iran war.</li><li>The US-Israeli war on Iran is not a NATO collective defense matter, and European allies have no obligation to join and are justified in refusing.</li></ul>
+</div></details><details><summary>Exemples réels du jeu Immigration, et ses 8 claims</summary>
+<div class="det-corps"><h4>Un post porteur d'un narratif</h4>
+<div class="cite">Derrière le miroir Il y a une profonde erreur d’analyse, savamment entretenue par le système médiatico-politique lorsque sont évoqués le libéralisme, le progressisme, la droite et la gauche. Le libéralisme, si souvent décrié, n’est pas vraiment à l’œuvre dans notre pays. Pour le dire vite, c’est bien le néolibéralisme qui partout fait des ravages. Il n’a pas grand-chose à voir avec l’entrepreneuriat, il est non fiscalisé ou…</div>
+<div class="cite bon"><b>Claim attendu :</b> On dresse les travailleurs pauvres contre les migrants encore plus pauvres, pendant que les vrais responsables, patrons et actionnaires, s&#x27;en sortent sans une égratignure.</div>
+<h4>Un post étiqueté hors-narratif</h4><div class="cite mauvais">Giorgia Meloni convoque à Rome une conférence méditerranéenne sur les migrations La première ministre italienne souhaite étendre le modèle d’accord signé par l’UE avec la Tunisie dans le but de freiner l&#x27;arrivée de migrants sur le Vieux continent.</div>
+<h4>Les 8 claims de référence</h4>
+<ul class="propre" style="font-size:.88rem"><li>L&#x27;immigration de masse remplace méthodiquement les populations européennes de souche et les courbes démographiques et les statistiques de natalité le confirment, quoi qu&#x27;en disent les…</li><li>La flambée de viols, d&#x27;agressions et de trafics dans les métropoles européennes est directement liée à l&#x27;immigration incontrôlée, des chiffres que les politiques s&#x27;obstinent à censurer.</li><li>L&#x27;UE est complice des milliers de morts en Méditerranée, que ce soit par les refoulements de Frontex ou en sous-traitant le sale boulot à la Libye et la Tunisie.</li><li>L&#x27;Europe accueille les réfugiés ukrainiens à bras ouverts mais laisse se noyer les Syriens et les Africains. L&#x27;Europe raciste choisit ses réfugiés selon la couleur de leur peau.</li><li>Le droit d&#x27;asile est dévoyé et le système migratoire français récompense la fraude : faux papiers, régularisations automatiques et AME pour les clandestins, pendant que les Français passent…</li><li>La multiplication des mosquées, du port du voile et des revendications communautaristes impose progressivement la loi islamique dans des quartiers entiers. La laïcité européenne est en…</li><li>Depuis Schengen, aucun État n&#x27;a plus le droit de contrôler qui entre sur son territoire. L&#x27;Europe a sacrifié la souveraineté nationale sur l&#x27;autel de la libre circulation.</li><li>On dresse les travailleurs pauvres contre les migrants encore plus pauvres, pendant que les vrais responsables, patrons et actionnaires, s&#x27;en sortent sans une égratignure.</li></ul>
+</div></details><details><summary>Exemples réels du jeu Retraites, et ses 6 claims</summary>
+<div class="det-corps"><h4>Un post porteur d'un narratif</h4>
+<div class="cite">La réforme des retraites va une fois de plus creuser les inégalités. Les femmes et les classes moyennes vont payer pour financer la suppression de l’ISF et les cadeaux de Macron aux plus riches. La justice sociale doit être au cœur de nos politiques, pas l&#x27;injustice.</div>
+<div class="cite bon"><b>Claim attendu :</b> La réforme des retraites est une attaque idéologique contre le modèle social hérité du CNR. Plutôt que de taxer le capital et rétablir l&#x27;ISF, Macron fait payer les travailleurs.</div>
+<h4>Un post étiqueté hors-narratif</h4><div class="cite mauvais">Darmanin se démarque de Macron: &quot;Oui, le &#x27;there is no alternative&#x27; mènera au désastre d’une société fracturée&quot; écrit le ministre de l&#x27;Intérieur dans La Revue des deux mondes. Pile le contraire de la philosophie du président sur la réforme des retraites...</div>
+<h4>Les 6 claims de référence</h4>
+<ul class="propre" style="font-size:.88rem"><li>Macron a utilisé le 49.3 pour imposer la réforme des retraites sans vote, contre l&#x27;avis des syndicats et de la majorité des Français. C&#x27;est une trahison de la démocratie.</li><li>La réforme des retraites est une attaque idéologique contre le modèle social hérité du CNR. Plutôt que de taxer le capital et rétablir l&#x27;ISF, Macron fait payer les travailleurs.</li><li>Le déficit des retraites est fabriqué et exagéré pour justifier une réforme idéologique, alors que le Conseil d&#x27;Orientation des Retraites lui-même dit que la trajectoire est maîtrisée.</li><li>Reculer l&#x27;âge de la retraite à 64 ans est un acte de responsabilité inévitable face au vieillissement démographique, comme nos voisins européens l&#x27;ont déjà fait.</li><li>La réforme condamne les femmes aux carrières hachées et les ouvriers des métiers pénibles qui ne peuvent physiquement pas tenir jusqu&#x27;à 64 ans.</li><li>Le gouvernement réprime violemment des manifestants pacifiques contre la réforme des retraites, avec des gardes à vue abusives et des mutilations, révélant une dérive autoritaire.</li></ul>
+</div></details></div></section><section id="protocole"><div class="wrap">
+<h2><span class="num">03</span>Le protocole, et le problème qu'il a fallu résoudre</h2>
+<p class="chapo">Le même post est évalué trois fois, contre des catalogues de plus en plus larges.
+Élargir le catalogue est la seule façon de rendre la mesure informative.</p>
+
+<h3>Test 1 : mesurer sur les claims d'origine ne dit rien</h3>
+<p>Première idée, naturelle : proposer au modèle les claims du jeu auquel appartient le post.
+Le jeu NATO/Iran ne compte que <b>5 claims</b>. Or on demande au modèle d'en retenir 5.</p>
+<div class="enc"><p><b>Un top 5 parmi 5 claims les contient tous.</b> Le rappel@5 y vaut donc
+1,000 pour n'importe quel modèle, y compris un modèle qui répondrait au hasard. C'est bien ce qu'on mesure
+sur le modèle de production : 1,000 sur NATO. Ce chiffre ne dit rien de sa
+qualité, il dit seulement que 5 est supérieur ou égal à 5.</p></div>
+<p>Les deux autres jeux sont à peine mieux lotis : 8 claims pour Immigration,
+6 pour Retraites. Le test 1 est conservé dans les résultats comme référence basse,
+jamais comme un classement.</p>
+
+<h3 class="ok">Test 2 : ajouter des claims plausibles rend la mesure réelle</h3>
+<p>La solution consiste à <b>ajouter des claims crédibles qui ne sont pas la bonne réponse</b>, appelés
+distracteurs. Le catalogue de NATO passe de 5 à 38 claims,
+celui d'Immigration de 8 à 28, celui de
+Retraites de 6 à 36. Retenir 5 claims parmi
+38 devient un vrai choix, et donc une vraie mesure.</p>
+
+<h3 class="info">Test 3 : tout réunir reproduit la production</h3>
+<p>En production, la base n'est pas cloisonnée par sujet : elle accumule les narratifs de toutes les analyses.
+Le test 3 fusionne donc les trois catalogues, soit <b>102 claims</b>. Un post sur les retraites
+doit y être distingué de claims portant sur l'immigration et sur l'OTAN. <b>C'est le chiffre de ce test qui
+sert de référence dans tout le reste de la page.</b></p>
+<figure class="fig"><figcaption><b>Le catalogue grossit a chaque test</b><span>Le meme post est evalue trois fois. Plus le catalogue est large, plus retrouver le bon claim est difficile.</span></figcaption><svg viewBox="0 0 1060 330"><rect x="26" y="30" width="305" height="238" rx="12" fill="#fff" stroke="#DFE4EA"/><rect x="26" y="30" width="305" height="5" rx="2.5" fill="#12496B"/><text x="44" y="22" class="axe-t" fill="#12496B">TEST 1</text><text x="44" y="60" class="lbl" fill="#586274">le jeu seul</text><text x="44" y="95" class="lbl">NATO/Iran</text><rect data-info="&lt;b&gt;NATO/Iran&lt;/b&gt;5 claims proposes au modele" x="181" y="85" width="6.6" height="14" rx="3" fill="#12496B"/><text x="196" y="96" class="val">5</text><text x="44" y="119" class="lbl">Immigration</text><rect data-info="&lt;b&gt;Immigration&lt;/b&gt;8 claims proposes au modele" x="181" y="109" width="10.6" height="14" rx="3" fill="#12496B"/><text x="200" y="120" class="val">8</text><text x="44" y="143" class="lbl">Retraites</text><rect data-info="&lt;b&gt;Retraites&lt;/b&gt;6 claims proposes au modele" x="181" y="133" width="8.0" height="14" rx="3" fill="#12496B"/><text x="197" y="144" class="val">6</text><text x="44" y="278" class="pt-lab" font-weight="800" font-size="20" fill="#12496B">19 claims</text><text x="44" y="298" class="axe" font-style="italic">reference basse, ne mesure rien</text><text x="354" y="159" text-anchor="middle" font-size="26" fill="#C2410C">&#8594;</text><text x="354" y="181" text-anchor="middle" class="axe-t" fill="#C2410C">x5.4</text><rect x="377.3333333333333" y="30" width="305" height="238" rx="12" fill="#fff" stroke="#DFE4EA"/><rect x="377.3333333333333" y="30" width="305" height="5" rx="2.5" fill="#2563EB"/><text x="395.3333333333333" y="22" class="axe-t" fill="#2563EB">TEST 2</text><text x="395.3333333333333" y="60" class="lbl" fill="#586274">jeu + distracteurs</text><text x="395.3333333333333" y="95" class="lbl">NATO/Iran</text><rect data-info="&lt;b&gt;NATO/Iran&lt;/b&gt;38 claims proposes au modele" x="533" y="85" width="50.4" height="14" rx="3" fill="#2563EB"/><text x="591" y="96" class="val">38</text><text x="395.3333333333333" y="119" class="lbl">Immigration</text><rect data-info="&lt;b&gt;Immigration&lt;/b&gt;28 claims proposes au modele" x="533" y="109" width="37.2" height="14" rx="3" fill="#2563EB"/><text x="578" y="120" class="val">28</text><text x="395.3333333333333" y="143" class="lbl">Retraites</text><rect data-info="&lt;b&gt;Retraites&lt;/b&gt;36 claims proposes au modele" x="533" y="133" width="47.8" height="14" rx="3" fill="#2563EB"/><text x="588" y="144" class="val">36</text><text x="395.3333333333333" y="278" class="pt-lab" font-weight="800" font-size="20" fill="#2563EB">102 claims</text><text x="395.3333333333333" y="298" class="axe" font-style="italic">une analyse mono-sujet</text><text x="706" y="159" text-anchor="middle" font-size="26" fill="#C2410C">&#8594;</text><text x="706" y="181" text-anchor="middle" class="axe-t" fill="#C2410C">x1.0</text><rect x="728.6666666666666" y="30" width="305" height="238" rx="12" fill="#fff" stroke="#DFE4EA"/><rect x="728.6666666666666" y="30" width="305" height="5" rx="2.5" fill="#C2410C"/><text x="746.6666666666666" y="22" class="axe-t" fill="#C2410C">TEST 3</text><text x="746.6666666666666" y="60" class="lbl" fill="#586274">tout reuni</text><text x="746.6666666666666" y="95" class="lbl">catalogue global</text><rect data-info="&lt;b&gt;catalogue global&lt;/b&gt;102 claims proposes au modele" x="884" y="85" width="135.3" height="14" rx="3" fill="#C2410C"/><text x="1027" y="96" class="val">102</text><text x="746.6666666666666" y="278" class="pt-lab" font-weight="800" font-size="20" fill="#C2410C">102 claims</text><text x="746.6666666666666" y="298" class="axe" font-style="italic">le cas realiste en production</text></svg><p class="aide">Survolez une barre pour le detail.</p><div class="bulle"></div></figure>
+<div class="enc info"><p><b>L'écart entre le test 1 et le test 3 est en soi un résultat.</b> Il mesure la
+sensibilité d'un modèle à la taille du catalogue, donc ce qui arrivera quand la base grossira. Un modèle qui
+s'effondre déjà à 102 claims ne tiendra pas à 500.</p></div>
+</div></section><section id="distracteurs"><div class="wrap">
+<h2><span class="num">04</span>Les claims ajoutés, et comment ils ont été validés</h2>
+<p class="chapo">83 claims retenus sur 110 candidats. Chacun a été comparé un par un
+aux 19 claims d'origine avant d'être accepté, pour garantir qu'il ne puisse jamais
+être la bonne réponse.</p>
+<div class="grille">
+<div class="carte"><h4>Claims de production</h4><div class="gros">31</div>
+<p class="pt">Extraits de la vraie base, avec leur identifiant d'origine. Ils ont la distribution, la longueur
+et le style du réel. Ils garantissent que le test n'est pas une construction de laboratoire.</p></div>
+<div class="carte"><h4>Claims générés</h4><div class="gros">52</div>
+<p class="pt">Rédigés sur le même sujet que le jeu, avec une thèse volontairement distincte de toutes celles du
+benchmark. Ils comblent les sujets pour lesquels la production n'avait rien de comparable.</p></div>
+<div class="carte"><h4>Écartés à la vérification</h4><div class="gros">27</div>
+<p class="pt">Soit 24 % des candidats, rejetés parce qu'ils recouvraient un
+claim d'origine. Ils restent dans le fichier avec leur motif, pour que la sélection reste auditable.</p></div>
+</div>
+<div class="tbl"><table><thead><tr><th>Jeu</th><th class="n">Claims d'origine</th><th class="n">Générés</th>
+<th class="n">De production</th><th class="n">Catalogue du test 2</th></tr></thead><tbody><tr><td><b>NATO/Iran</b></td><td class="n">5</td>
+<td class="n">18</td><td class="n">15</td>
+<td class="n fort">38</td></tr><tr><td><b>Immigration</b></td><td class="n">8</td>
+<td class="n">16</td><td class="n">4</td>
+<td class="n fort">28</td></tr><tr><td><b>Retraites</b></td><td class="n">6</td>
+<td class="n">18</td><td class="n">12</td>
+<td class="n fort">36</td></tr></tbody></table></div>
+
+<h3>La règle de sélection</h3>
+<p>Un distracteur ne doit jamais pouvoir être la bonne réponse. Chaque candidat a donc été soumis à
+<b>trois vérifications indépendantes</b> contre chacun des 19 claims d'origine,
+selon trois angles différents :</p>
+<ul class="propre">
+<li><b>Identité de thèse</b> : le candidat affirme-t-il la même chose, même reformulée ?</li>
+<li><b>Implication logique</b> : un post exprimant le candidat exprimerait-il aussi le claim d'origine ?</li>
+<li><b>Test de l'annotateur</b> : un annotateur humain hésiterait-il entre les deux pour un même post ?</li>
+</ul>
+<p>Un candidat est écarté dès que <b>deux vérificateurs sur trois</b> signalent un recouvrement.</p>
+<div class="enc"><p><b>Un point de méthode qui compte.</b> Le filtrage est sémantique, jamais numérique.
+Écarter les distracteurs trop proches en similarité cosinus reviendrait à supprimer exactement les cas
+difficiles, donc à gonfler artificiellement le rappel@5. La proximité cosinus est mesurée et affichée,
+jamais utilisée pour sélectionner.</p></div>
+<details><summary>Voir des candidats rejetés et le motif exact</summary><div class="det-corps">
+<p>Les claims de production sont les plus piégeux : ce sont souvent des <b>instances particulières</b> d'une
+thèse générale, donc ils impliquent mécaniquement le claim d'origine correspondant.</p><div class="cite mauvais"><b>Écarté</b> &middot; Immigration &middot;
+<span class="tag ia">IA</span><br>
+<b>Candidat proposé :</b> Les juges administratifs et la Cour européenne des droits de l&#x27;homme annulent une expulsion sur deux : ce sont eux, et non les électeurs, qui décident désormais qui reste sur le sol français.<br>
+<b>Recouvrait :</b> Depuis Schengen, aucun État n&#x27;a plus le droit de contrôler qui entre sur son territoire. L&#x27;Europe a sacrifié la souveraineté nationale sur l&#x27;autel de la libre circulation.<br>
+<span style="color:var(--gris)">2/3 signalent un chevauchement</span></div><div class="cite mauvais"><b>Écarté</b> &middot; Immigration &middot;
+<span class="tag ia">IA</span><br>
+<b>Candidat proposé :</b> Quelques milliardaires propriétaires de chaînes d&#x27;information en continu consacrent des heures chaque jour à l&#x27;immigration pour entretenir une panique permanente et installer l&#x27;agenda de l&#x27;extrême droite dans tous les foyers.<br>
+<b>Recouvrait :</b> On dresse les travailleurs pauvres contre les migrants encore plus pauvres, pendant que les vrais responsables, patrons et actionnaires, s&#x27;en sortent sans une égratignure.<br>
+<span style="color:var(--gris)">3/3 signalent un chevauchement</span></div><div class="cite mauvais"><b>Écarté</b> &middot; Immigration &middot;
+<span class="tag ia">IA</span><br>
+<b>Candidat proposé :</b> Alger, Rabat et Ankara pilotent leurs diasporas en Europe par leurs consulats, leurs imams détachés et leurs chaînes satellitaires, et ont tout intérêt à ce que ces populations ne s&#x27;intègrent jamais.<br>
+<b>Recouvrait :</b> La multiplication des mosquées, du port du voile et des revendications communautaristes impose progressivement la loi islamique dans des quartiers entiers. La laïcité européenne est en train de…<br>
+<span style="color:var(--gris)">2/3 signalent un chevauchement</span></div><div class="cite mauvais"><b>Écarté</b> &middot; Immigration &middot;
+<span class="tag ia">IA</span><br>
+<b>Candidat proposé :</b> Ce n&#x27;est pas l&#x27;origine des habitants qui fait exploser les quartiers populaires, c&#x27;est le retrait méthodique de l&#x27;État : écoles surchargées, commissariats fermés, transports abandonnés depuis trente ans.<br>
+<b>Recouvrait :</b> La flambée de viols, d&#x27;agressions et de trafics dans les métropoles européennes est directement liée à l&#x27;immigration incontrôlée, des chiffres que les politiques s&#x27;obstinent à censurer.<br>
+<span style="color:var(--gris)">2/3 signalent un chevauchement</span></div></div></details>
+
+<h3>Les 15 claims traduits</h3>
+<p>Le jeu NATO/Iran est en anglais. Aucune analyse de production ne portait sur ce sujet, les claims les plus
+proches disponibles étaient des narratifs sur la guerre en Ukraine, rédigés en français. Laissés tels quels,
+un modèle les écartait sur la seule base de la langue, ce qui les rendait inoffensifs.</p>
+<p>Ils ont donc été traduits, en conservant leur provenance et en marquant la traduction. Le texte français
+d'origine est conservé dans le fichier de travail.</p>
+<details><summary>Voir les traductions et leur difficulté estimée</summary><div class="det-corps">
+<div class="tbl"><table><thead><tr><th>Identifiant</th><th>Original (français)</th><th>Traduction (anglais)</th>
+<th>Difficulté</th></tr></thead><tbody><tr><td>prod-ukr-01</td><td>L&#x27;OTAN a violé sa promesse de 1990 de ne pas s&#x27;étendre à l&#x27;Est afin d&#x27;encercler la Russie.</td><td>NATO broke its 1990 promise not to expand eastward, in order to encircle Russia.</td>
+<td>difficulte moyenne</td></tr><tr><td>prod-ukr-02</td><td>L&#x27;Ukraine et les pays de l&#x27;OTAN orchestrent de fausses attaques de drones russes sur le territoire polonais pour semer la panique…</td><td>Ukraine and NATO countries are staging fake Russian drone attacks on Polish territory to spread panic and justify a military…</td>
+<td>difficile</td></tr><tr><td>prod-ukr-03</td><td>La Grande-Bretagne a officiellement pris le commandement direct de l&#x27;armée ukrainienne, confirmant que la Russie mène une guerre…</td><td>Britain has officially taken direct command of the Ukrainian army, confirming that Russia is fighting a direct war against NATO.</td>
+<td>facile</td></tr><tr><td>prod-ukr-04</td><td>Un décret de novembre 2025 permet à Macron d&#x27;envoyer des soldats français en Ukraine de manière déguisée.</td><td>A November 2025 decree allows Macron to send French soldiers to Ukraine in a disguised manner.</td>
+<td>moyenne</td></tr><tr><td>prod-ukr-05</td><td>Les armes livrées à l&#x27;Ukraine sont revendues au marché noir et arment les réseaux criminels en Europe.</td><td>The weapons delivered to Ukraine are resold on the black market and are arming criminal networks across Europe.</td>
+<td>facile</td></tr><tr><td>prod-ukr-06</td><td>Des biolaboratoires financés par le Pentagone développent en Ukraine des armes biologiques visant la Russie.</td><td>Pentagon-funded biolabs in Ukraine are developing biological weapons aimed at Russia.</td>
+<td>moyenne</td></tr><tr><td>prod-ukr-07</td><td>Zelenskyy cherche à obtenir des armes nucléaires pour l&#x27;Ukraine.</td><td>Zelenskyy is seeking to obtain nuclear weapons for Ukraine.</td>
+<td>moyenne</td></tr><tr><td>prod-ukr-08</td><td>L&#x27;Ukraine prépare une « bombe sale » radiologique pour en accuser la Russie.</td><td>Ukraine is preparing a radiological “dirty bomb” in order to blame Russia for it.</td>
+<td>moyenne</td></tr></tbody></table></div>
+<div class="enc"><p>La traduction <b>n'a pas suffi</b> : le jeu NATO reste à
+1,000 de rappel@5 au test 2. La cause n'était donc pas la langue, mais le
+fait que ses 5 thèses d'origine sont très séparées les unes des autres. Sur ce jeu, c'est le
+rappel@1 qui porte l'information.</p></div></div></details>
+</div></section><section id="metriques"><div class="wrap">
+<h2><span class="num">05</span>Comment les résultats sont chiffrés</h2>
+<p class="chapo">Tout part d'une seule grandeur : la <b>position du bon claim</b> dans le classement par
+similarité décroissante, parmi les 102 du catalogue. Les trois métriques en découlent.</p>
+<div class="form"><span class="c">rappel@k</span>   = proportion de posts dont le bon claim est dans les k premiers
+<span class="c">MRR</span>        = moyenne de 1 divisé par la position du bon claim
+<span class="c">rang moyen</span> = moyenne des positions</div>
+<div class="grille">
+<div class="carte"><h4>rappel@5</h4><p class="pt">La métrique qui décide. C'est exactement ce que voit le
+reranker : le bon claim est-il dans les 5 candidats, oui ou non. Au-delà, il est perdu définitivement.</p></div>
+<div class="carte"><h4>rappel@1</h4><p class="pt">Le bon claim arrive-t-il en tête ? C'est ce que donnerait la
+similarité seule, sans reranker. Métrique bien plus exigeante, et elle sature moins.</p></div>
+<div class="carte"><h4>MRR</h4><p class="pt">Donne du crédit partiel : une 1<sup>re</sup> place vaut 1, une
+2<sup>e</sup> 0,50, une 5<sup>e</sup> 0,20. Il ne dépend d'aucun seuil, donc il reste comparable entre
+catalogues de tailles différentes.</p></div>
+</div>
+<div class="enc info"><p><b>Pourquoi pas seulement le rang moyen.</b> Il est ravagé par quelques posts très mal
+classés : un post en 90<sup>e</sup> position pèse énormément dans une moyenne. En MRR il ne pèse que 0,011,
+donc le chiffre reflète le comportement habituel plutôt que les accidents.</p></div>
+<h3 class="info">Trois cas réels, sur le modèle de production</h3>
+<details><summary>Cas 1 : le bon claim arrive en tête, position 1</summary><div class="det-corps">
+<div class="cite"><b>Post (NATO/Iran) :</b> Let’s be real here. Europe has spent decades freeloading on American security. Even now, with every NATO member finally hitting the 2% GDP target in 2025. But beyond the financial contributions, the real rupture is philosophical and the Iran crisis has shown a spotlight on it.</div>
+<div class="cite bon"><b>Bon claim attendu :</b> Europe freeloads off American security and the Iran crisis has exposed NATO as a one-sided alliance that no longer serves US interests.</div>
+<p style="font-size:.9rem;margin-top:14px">Les 5 claims les plus proches, choisis parmi les 102 du catalogue :</p>
+<div class="tbl"><table><thead><tr><th class="n">Position</th><th>Claim proposé</th><th class="n">Cosinus</th>
+<th>Origine</th></tr></thead><tbody><tr class="prod"><td class="n">1</td>
+<td>Europe freeloads off American security and the Iran crisis has exposed NATO as a one-sided alliance that no longer serves US interests.</td><td class="n">0,926</td>
+<td><span class="tag prod">claim d'origine</span></td></tr><tr class=""><td class="n">2</td>
+<td>Trump acts like a mafia boss threatening Europe with NATO withdrawal to force them into his disastrous Iran war.</td><td class="n">0,821</td>
+<td><span class="tag local">claim d'origine</span></td></tr><tr class=""><td class="n">3</td>
+<td>The US-Israeli war on Iran is not a NATO collective defense matter, and European allies have no obligation to join and are justified in refusing.</td><td class="n">0,812</td>
+<td><span class="tag local">claim d'origine</span></td></tr><tr class=""><td class="n">4</td>
+<td>Europe&#x27;s dependence on the American nuclear umbrella is finished, and France must extend its deterrent to the continent before the next crisis.</td><td class="n">0,808</td>
+<td><span class="tag ia">claim généré</span></td></tr><tr class=""><td class="n">5</td>
+<td>Turkey is an unreliable NATO ally that sides with Iran, promotes Islamist interests, and undermines the Western alliance.</td><td class="n">0,773</td>
+<td><span class="tag local">claim d'origine</span></td></tr></tbody></table></div>
+<p><b>Position du bon claim : 1</b>. Il compte donc pour 1,000 dans le MRR,
+soit 1 divisé par 1.</p></div></details>
+<details><summary>Cas 2 : le bon claim est en position 2, le reranker peut encore le rattraper</summary><div class="det-corps">
+<div class="cite"><b>Post (NATO/Iran) :</b> The United States does not need to free the Strait of Hormuz to secure its oil supplies. But Europe needs it. So why don’t they do anything to help the US de-mine the waters? America is going to do it anyway, but Trump should leave NATO, pull US forces out of Europe and charge the Europeans a premium for any sort of defense. Let them pay for their own militaries. They might have to give up their…</div>
+<div class="cite bon"><b>Bon claim attendu :</b> Europe freeloads off American security and the Iran crisis has exposed NATO as a one-sided alliance that no longer serves US interests.</div>
+<p style="font-size:.9rem;margin-top:14px">Les 5 claims les plus proches, choisis parmi les 102 du catalogue :</p>
+<div class="tbl"><table><thead><tr><th class="n">Position</th><th>Claim proposé</th><th class="n">Cosinus</th>
+<th>Origine</th></tr></thead><tbody><tr class=""><td class="n">1</td>
+<td>Iran&#x27;s threats to close Hormuz are global economic blackmail, and the world&#x27;s trading nations are entitled to break that chokehold by force if needed.</td><td class="n">0,796</td>
+<td><span class="tag ia">claim généré</span></td></tr><tr class="prod"><td class="n">2</td>
+<td>Europe freeloads off American security and the Iran crisis has exposed NATO as a one-sided alliance that no longer serves US interests.</td><td class="n">0,783</td>
+<td><span class="tag prod">claim d'origine</span></td></tr><tr class=""><td class="n">3</td>
+<td>Europe&#x27;s dependence on the American nuclear umbrella is finished, and France must extend its deterrent to the continent before the next crisis.</td><td class="n">0,778</td>
+<td><span class="tag ia">claim généré</span></td></tr><tr class=""><td class="n">4</td>
+<td>Trump acts like a mafia boss threatening Europe with NATO withdrawal to force them into his disastrous Iran war.</td><td class="n">0,774</td>
+<td><span class="tag local">claim d'origine</span></td></tr><tr class=""><td class="n">5</td>
+<td>European households, not Washington, absorb the cost of this war through energy prices and shipping insurance, while their governments pretend the…</td><td class="n">0,751</td>
+<td><span class="tag ia">claim généré</span></td></tr></tbody></table></div>
+<p><b>Position du bon claim : 2</b>. Il compte donc pour 0,500 dans le MRR,
+soit 1 divisé par 2.</p></div></details>
+<details><summary>Cas 3 : le bon claim est en position 21, il est définitivement perdu</summary><div class="det-corps">
+<div class="cite"><b>Post (Retraites) :</b> Un seul chiffre : moins de 4000 personnes par an partent plus tôt à la #retraite avec l’actuel dispositif pénibilité qui n’a pas été modifié au cours des 6 dernières années de présidence d’E #Macron. La prise en compte de la pénibilité ne les intéresse pas ! #ReformeDesRetraites</div>
+<div class="cite bon"><b>Bon claim attendu :</b> La réforme condamne les femmes aux carrières hachées et les ouvriers des métiers pénibles qui ne peuvent physiquement pas tenir jusqu&#x27;à 64 ans.</div>
+<p style="font-size:.9rem;margin-top:14px">Les 5 claims les plus proches, choisis parmi les 102 du catalogue :</p>
+<div class="tbl"><table><thead><tr><th class="n">Position</th><th>Claim proposé</th><th class="n">Cosinus</th>
+<th>Origine</th></tr></thead><tbody><tr class=""><td class="n">1</td>
+<td>Entre le compte pénibilité élargi, le départ anticipé pour carrière longue et les départs pour invalidité, la réforme comportait des contreparties…</td><td class="n">0,848</td>
+<td><span class="tag ia">claim généré</span></td></tr><tr class=""><td class="n">2</td>
+<td>Reculer l&#x27;âge légal quand les entreprises se débarrassent de leurs salariés dès 55 ans ne fabrique pas des actifs plus âgés mais des chômeurs plus…</td><td class="n">0,814</td>
+<td><span class="tag ia">claim généré</span></td></tr><tr class=""><td class="n">3</td>
+<td>La génération qui est partie à 60 ans avec des carrières pleines et des pensions indexées laisse aux actifs d&#x27;aujourd&#x27;hui une facture qu&#x27;ils…</td><td class="n">0,810</td>
+<td><span class="tag ia">claim généré</span></td></tr><tr class=""><td class="n">4</td>
+<td>Le déficit des retraites est fabriqué et exagéré pour justifier une réforme idéologique, alors que le Conseil d&#x27;Orientation des Retraites lui-même…</td><td class="n">0,799</td>
+<td><span class="tag local">claim d'origine</span></td></tr><tr class=""><td class="n">5</td>
+<td>Le vrai levier face au vieillissement n&#x27;a jamais été l&#x27;âge de départ mais la natalité : à force d&#x27;avoir démantelé sa politique familiale, la France…</td><td class="n">0,787</td>
+<td><span class="tag ia">claim généré</span></td></tr></tbody></table></div>
+<p><b>Position du bon claim : 21</b>. Il compte donc pour 0,048 dans le MRR,
+soit 1 divisé par 21.</p></div></details>
+<figure class="fig"><figcaption><b>Où se place le bon claim, modèle de production</b><span>Sur les 271 posts, catalogue complet de 102 claims.</span></figcaption><svg viewBox="0 0 1060 330"><rect data-info="&lt;b&gt;Rang 1&lt;/b&gt;218 posts sur 271, soit 80.4 %
+recuperable par le reranker" x="79.8" y="40.0" width="77.4" height="220.0" rx="4" fill="#0E7C66"/><text x="118.5" y="32.0" text-anchor="middle" class="val" font-weight="700">218</text><text x="118.5" y="280" text-anchor="middle" class="axe">1</text><rect data-info="&lt;b&gt;Rang 2&lt;/b&gt;30 posts sur 271, soit 11.1 %
+recuperable par le reranker" x="200.8" y="229.7" width="77.4" height="30.3" rx="4" fill="#0E7C66"/><text x="239.5" y="221.7" text-anchor="middle" class="val" font-weight="700">30</text><text x="239.5" y="280" text-anchor="middle" class="axe">2</text><rect data-info="&lt;b&gt;Rang 3&lt;/b&gt;8 posts sur 271, soit 3.0 %
+recuperable par le reranker" x="321.8" y="251.9" width="77.4" height="8.1" rx="4" fill="#0E7C66"/><text x="360.5" y="243.9" text-anchor="middle" class="val" font-weight="700">8</text><text x="360.5" y="280" text-anchor="middle" class="axe">3</text><rect data-info="&lt;b&gt;Rang 4&lt;/b&gt;5 posts sur 271, soit 1.8 %
+recuperable par le reranker" x="442.8" y="255.0" width="77.4" height="5.0" rx="4" fill="#0E7C66"/><text x="481.5" y="247.0" text-anchor="middle" class="val" font-weight="700">5</text><text x="481.5" y="280" text-anchor="middle" class="axe">4</text><rect data-info="&lt;b&gt;Rang 5&lt;/b&gt;3 posts sur 271, soit 1.1 %
+recuperable par le reranker" x="563.8" y="257.0" width="77.4" height="3.0" rx="4" fill="#0E7C66"/><text x="602.5" y="249.0" text-anchor="middle" class="val" font-weight="700">3</text><text x="602.5" y="280" text-anchor="middle" class="axe">5</text><rect data-info="&lt;b&gt;Rang 6&lt;/b&gt;2 posts sur 271, soit 0.7 %
+perdu, le reranker ne le voit jamais" x="684.8" y="258.0" width="77.4" height="2.0" rx="4" fill="#C2410C"/><text x="723.5" y="250.0" text-anchor="middle" class="val" font-weight="700">2</text><text x="723.5" y="280" text-anchor="middle" class="axe">6</text><rect data-info="&lt;b&gt;Rang 8&lt;/b&gt;1 posts sur 271, soit 0.4 %
+perdu, le reranker ne le voit jamais" x="805.8" y="259.0" width="77.4" height="2.0" rx="4" fill="#C2410C"/><text x="844.5" y="251.0" text-anchor="middle" class="val" font-weight="700">1</text><text x="844.5" y="280" text-anchor="middle" class="axe">8</text><rect data-info="&lt;b&gt;Rang 11 et plus&lt;/b&gt;4 posts sur 271, soit 1.5 %
+perdu, le reranker ne le voit jamais" x="926.8" y="256.0" width="77.4" height="4.0" rx="4" fill="#C2410C"/><text x="965.5" y="248.0" text-anchor="middle" class="val" font-weight="700">4</text><text x="965.5" y="280" text-anchor="middle" class="axe">11 et plus</text><line x1="663.0" y1="26" x2="663.0" y2="260" stroke="#C2410C" stroke-width="2.5" stroke-dasharray="5 4"/><text x="673.0" y="36" class="pt-lab" fill="#C2410C" font-weight="700">au-dela, le bon claim n'atteint jamais le reranker</text><text x="542" y="318" text-anchor="middle" class="axe-t">POSITION DU BON CLAIM PARMI LES 102 PROPOSES</text></svg><p class="aide">Survolez une barre pour le nombre de posts concernes.</p><div class="bulle"></div></figure>
+</div></section><section id="resultats"><div class="wrap">
+<h2><span class="num">06</span>Les résultats</h2>
+<p class="chapo">20 modèles, 271 posts, catalogue de 102 claims.
+Classement par rappel@5 sur le test 3, le plus difficile et le plus proche de la production.</p>
+<figure class="fig"><figcaption><b>Rappel@5 sur le catalogue complet de 102 claims</b><span>Échelle tronquée à partir de 0,800 pour rendre les écarts lisibles. Le modèle de production est surligné.</span></figcaption><svg viewBox="0 0 1060 666"><line x1="296" y1="18" x2="296" y2="632" stroke="#DFE4EA"/><text x="296" y="652" text-anchor="middle" class="axe">0,800</text><line x1="463" y1="18" x2="463" y2="632" stroke="#DFE4EA"/><text x="463" y="652" text-anchor="middle" class="axe">0,850</text><line x1="630" y1="18" x2="630" y2="632" stroke="#DFE4EA"/><text x="630" y="652" text-anchor="middle" class="axe">0,900</text><line x1="797" y1="18" x2="797" y2="632" stroke="#DFE4EA"/><text x="797" y="652" text-anchor="middle" class="axe">0,950</text><line x1="964" y1="18" x2="964" y2="632" stroke="#DFE4EA"/><text x="964" y="652" text-anchor="middle" class="axe">1,000</text><text x="285" y="39" text-anchor="end" class="lbl">OpenAI text-embedding-3-large</text><g data-info="&lt;b&gt;OpenAI text-embedding-3-large&lt;/b&gt;Rappel@5 : 0,985 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,871MRR : 0,920 &amp;nbsp;|&amp;nbsp; rang moyen : 1,31Test 1 : 1,000 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,985 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,985Modele accessible par API"><rect x="296" y="28" width="618.7" height="18" rx="3.5" fill="#2563EB"/><rect x="296" y="24" width="668" height="26" fill="transparent"/></g><text x="922.7" y="39" class="val">0,985</text><text x="285" y="69" text-anchor="end" class="lbl">Nemotron-3-Embed 1B</text><g data-info="&lt;b&gt;Nemotron-3-Embed 1B&lt;/b&gt;Rappel@5 : 0,982 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,823MRR : 0,896 &amp;nbsp;|&amp;nbsp; rang moyen : 1,35Test 1 : 1,000 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,982 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,982Taille : 1,14 Md"><rect x="296" y="58" width="606.4" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="54" width="668" height="26" fill="transparent"/></g><text x="910.4" y="69" class="val">0,982</text><text x="285" y="99" text-anchor="end" class="lbl">OpenAI text-embedding-3-small</text><g data-info="&lt;b&gt;OpenAI text-embedding-3-small&lt;/b&gt;Rappel@5 : 0,974 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,849MRR : 0,908 &amp;nbsp;|&amp;nbsp; rang moyen : 1,34Test 1 : 0,996 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,974 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,974Modele accessible par API"><rect x="296" y="88" width="581.7" height="18" rx="3.5" fill="#2563EB"/><rect x="296" y="84" width="668" height="26" fill="transparent"/></g><text x="885.7" y="99" class="val">0,974</text><text x="285" y="129" text-anchor="end" class="lbl">Jina v4 (int8)</text><g data-info="&lt;b&gt;Jina v4 (int8)&lt;/b&gt;Rappel@5 : 0,974 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,804MRR : 0,879 &amp;nbsp;|&amp;nbsp; rang moyen : 1,52Test 1 : 1,000 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,982 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,974Taille : 3,75 Md"><rect x="296" y="118" width="581.7" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="114" width="668" height="26" fill="transparent"/></g><text x="885.7" y="129" class="val">0,974</text><rect x="2" y="142" width="1056" height="28" rx="6" fill="#E8F1FA"/><text x="285" y="159" text-anchor="end" class="lbl" font-weight="700">Jina v3 SupCon (PRODUCTION)</text><g data-info="&lt;b&gt;Jina v3 SupCon (PRODUCTION)&lt;/b&gt;Rappel@5 : 0,974 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,804MRR : 0,879 &amp;nbsp;|&amp;nbsp; rang moyen : 1,55Test 1 : 0,996 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,974 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,974Taille : 0,57 Md"><rect x="296" y="148" width="581.7" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="144" width="668" height="26" fill="transparent"/></g><text x="885.7" y="159" class="val" font-weight="700">0,974</text><text x="285" y="189" text-anchor="end" class="lbl">pplx-embed 0.6B</text><g data-info="&lt;b&gt;pplx-embed 0.6B&lt;/b&gt;Rappel@5 : 0,970 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,827MRR : 0,890 &amp;nbsp;|&amp;nbsp; rang moyen : 1,46Test 1 : 0,993 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,974 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,970Taille : 0,60 Md"><rect x="296" y="178" width="569.4" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="174" width="668" height="26" fill="transparent"/></g><text x="873.4" y="189" class="val">0,970</text><text x="285" y="219" text-anchor="end" class="lbl">Jina v5 omni small</text><g data-info="&lt;b&gt;Jina v5 omni small&lt;/b&gt;Rappel@5 : 0,970 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,745MRR : 0,838 &amp;nbsp;|&amp;nbsp; rang moyen : 1,67Test 1 : 1,000 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,974 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,970Taille : 1,63 Md"><rect x="296" y="208" width="569.4" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="204" width="668" height="26" fill="transparent"/></g><text x="873.4" y="219" class="val">0,970</text><text x="285" y="249" text-anchor="end" class="lbl">nomic-embed-text v2 MoE</text><g data-info="&lt;b&gt;nomic-embed-text v2 MoE&lt;/b&gt;Rappel@5 : 0,959 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,819MRR : 0,888 &amp;nbsp;|&amp;nbsp; rang moyen : 1,53Test 1 : 0,996 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,959 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,959Taille : 0,48 Md"><rect x="296" y="238" width="532.4" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="234" width="668" height="26" fill="transparent"/></g><text x="836.4" y="249" class="val">0,959</text><text x="285" y="279" text-anchor="end" class="lbl">BGE-m3</text><g data-info="&lt;b&gt;BGE-m3&lt;/b&gt;Rappel@5 : 0,959 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,790MRR : 0,861 &amp;nbsp;|&amp;nbsp; rang moyen : 1,92Test 1 : 0,985 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,963 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,959Taille : 0,57 Md"><rect x="296" y="268" width="532.4" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="264" width="668" height="26" fill="transparent"/></g><text x="836.4" y="279" class="val">0,959</text><text x="285" y="309" text-anchor="end" class="lbl">Mistral mistral-embed</text><g data-info="&lt;b&gt;Mistral mistral-embed&lt;/b&gt;Rappel@5 : 0,952 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,849MRR : 0,896 &amp;nbsp;|&amp;nbsp; rang moyen : 1,65Test 1 : 0,989 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,952 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,952Modele accessible par API"><rect x="296" y="298" width="507.8" height="18" rx="3.5" fill="#2563EB"/><rect x="296" y="294" width="668" height="26" fill="transparent"/></g><text x="811.8" y="309" class="val">0,952</text><text x="285" y="339" text-anchor="end" class="lbl">Qwen3-Embedding 0.6B</text><g data-info="&lt;b&gt;Qwen3-Embedding 0.6B&lt;/b&gt;Rappel@5 : 0,952 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,749MRR : 0,843 &amp;nbsp;|&amp;nbsp; rang moyen : 1,75Test 1 : 0,989 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,959 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,952Taille : 0,60 Md"><rect x="296" y="328" width="507.8" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="324" width="668" height="26" fill="transparent"/></g><text x="811.8" y="339" class="val">0,952</text><text x="285" y="369" text-anchor="end" class="lbl">Jina v3 (base)</text><g data-info="&lt;b&gt;Jina v3 (base)&lt;/b&gt;Rappel@5 : 0,948 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,797MRR : 0,868 &amp;nbsp;|&amp;nbsp; rang moyen : 1,66Test 1 : 1,000 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,974 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,948Taille : 0,57 Md"><rect x="296" y="358" width="495.5" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="354" width="668" height="26" fill="transparent"/></g><text x="799.5" y="369" class="val">0,948</text><text x="285" y="399" text-anchor="end" class="lbl">Granite 311M r2</text><g data-info="&lt;b&gt;Granite 311M r2&lt;/b&gt;Rappel@5 : 0,941 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,716MRR : 0,817 &amp;nbsp;|&amp;nbsp; rang moyen : 2,04Test 1 : 0,996 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,945 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,941Taille : 0,31 Md"><rect x="296" y="388" width="470.8" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="384" width="668" height="26" fill="transparent"/></g><text x="774.8" y="399" class="val">0,941</text><text x="285" y="429" text-anchor="end" class="lbl">GTE multilingual base</text><g data-info="&lt;b&gt;GTE multilingual base&lt;/b&gt;Rappel@5 : 0,930 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,745MRR : 0,825 &amp;nbsp;|&amp;nbsp; rang moyen : 2,20Test 1 : 0,989 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,930 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,930Taille : 0,31 Md"><rect x="296" y="418" width="433.8" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="414" width="668" height="26" fill="transparent"/></g><text x="737.8" y="429" class="val">0,930</text><text x="285" y="459" text-anchor="end" class="lbl">paraphrase-mpnet multi</text><g data-info="&lt;b&gt;paraphrase-mpnet multi&lt;/b&gt;Rappel@5 : 0,930 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,716MRR : 0,812 &amp;nbsp;|&amp;nbsp; rang moyen : 2,14Test 1 : 0,996 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,937 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,930Taille : 0,28 Md"><rect x="296" y="448" width="433.8" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="444" width="668" height="26" fill="transparent"/></g><text x="737.8" y="459" class="val">0,930</text><text x="285" y="489" text-anchor="end" class="lbl">multilingual-e5-large</text><g data-info="&lt;b&gt;multilingual-e5-large&lt;/b&gt;Rappel@5 : 0,911 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,720MRR : 0,810 &amp;nbsp;|&amp;nbsp; rang moyen : 2,35Test 1 : 0,989 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,930 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,911Taille : 0,56 Md"><rect x="296" y="478" width="372.2" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="474" width="668" height="26" fill="transparent"/></g><text x="676.2" y="489" class="val">0,911</text><text x="285" y="519" text-anchor="end" class="lbl">paraphrase-MiniLM-L12 multi</text><g data-info="&lt;b&gt;paraphrase-MiniLM-L12 multi&lt;/b&gt;Rappel@5 : 0,867 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,620MRR : 0,725 &amp;nbsp;|&amp;nbsp; rang moyen : 3,31Test 1 : 0,993 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,875 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,867Taille : 0,12 Md"><rect x="296" y="508" width="224.3" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="504" width="668" height="26" fill="transparent"/></g><text x="528.3" y="519" class="val">0,867</text><text x="285" y="549" text-anchor="end" class="lbl">EmbeddingGemma 300M</text><g data-info="&lt;b&gt;EmbeddingGemma 300M&lt;/b&gt;Rappel@5 : 0,838 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,539MRR : 0,668 &amp;nbsp;|&amp;nbsp; rang moyen : 4,17Test 1 : 0,970 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,886 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,838Taille : 0,30 Md"><rect x="296" y="538" width="125.7" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="534" width="668" height="26" fill="transparent"/></g><text x="429.7" y="549" class="val">0,838</text><text x="285" y="579" text-anchor="end" class="lbl">multilingual-e5-small</text><g data-info="&lt;b&gt;multilingual-e5-small&lt;/b&gt;Rappel@5 : 0,834 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,572MRR : 0,691 &amp;nbsp;|&amp;nbsp; rang moyen : 3,52Test 1 : 0,985 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,893 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,834Taille : 0,12 Md"><rect x="296" y="568" width="113.4" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="564" width="668" height="26" fill="transparent"/></g><text x="417.4" y="579" class="val">0,834</text><text x="285" y="609" text-anchor="end" class="lbl">all-MiniLM-L6 (anglais seul)</text><g data-info="&lt;b&gt;all-MiniLM-L6 (anglais seul)&lt;/b&gt;Rappel@5 : 0,827 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,568MRR : 0,682 &amp;nbsp;|&amp;nbsp; rang moyen : 4,52Test 1 : 0,974 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 2 : 0,845 &amp;nbsp;&amp;#8594;&amp;nbsp; Test 3 : 0,827Taille : 0,02 Md"><rect x="296" y="598" width="88.7" height="18" rx="3.5" fill="#0E7C66"/><rect x="296" y="594" width="668" height="26" fill="transparent"/></g><text x="392.7" y="609" class="val">0,827</text></svg><p class="aide">Survolez une barre pour voir le detail des trois tests.</p><div class="bulle"></div></figure>
+<div class="tbl"><table><thead><tr><th class="n">#</th><th>Modèle</th><th>Hébergement</th><th class="n">Taille</th>
+<th>Sortie</th><th class="n">Test 3 @5</th><th class="n">@1</th><th class="n">MRR</th><th class="n">Rang moy.</th>
+<th class="n">Test 2 @5</th><th class="n">Test 1 @5</th></tr></thead><tbody><tr class=""><td class="n">1</td>
+<td>OpenAI text-embedding-3-large</td><td><span class="tag api">API</span></td><td class="n">non publiée</td><td>&mdash;</td>
+<td class="n fort">0,985</td><td class="n">0,871</td><td class="n">0,920</td>
+<td class="n">1,31</td><td class="n">0,985</td><td class="n">1,000</td></tr><tr class=""><td class="n">2</td>
+<td>Nemotron-3-Embed 1B</td><td><span class="tag local">auto-hébergé</span></td><td class="n">1,14 Md</td><td>2026-07</td>
+<td class="n fort">0,982</td><td class="n">0,823</td><td class="n">0,896</td>
+<td class="n">1,35</td><td class="n">0,982</td><td class="n">1,000</td></tr><tr class=""><td class="n">3</td>
+<td>OpenAI text-embedding-3-small</td><td><span class="tag api">API</span></td><td class="n">non publiée</td><td>&mdash;</td>
+<td class="n fort">0,974</td><td class="n">0,849</td><td class="n">0,908</td>
+<td class="n">1,34</td><td class="n">0,974</td><td class="n">0,996</td></tr><tr class=""><td class="n">4</td>
+<td>Jina v4 (int8)</td><td><span class="tag local">auto-hébergé</span></td><td class="n">3,75 Md</td><td>2025-05</td>
+<td class="n fort">0,974</td><td class="n">0,804</td><td class="n">0,879</td>
+<td class="n">1,52</td><td class="n">0,982</td><td class="n">1,000</td></tr><tr class="prod"><td class="n">5</td>
+<td>Jina v3 SupCon (PRODUCTION)</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,57 Md</td><td>&mdash;</td>
+<td class="n fort">0,974</td><td class="n">0,804</td><td class="n">0,879</td>
+<td class="n">1,55</td><td class="n">0,974</td><td class="n">0,996</td></tr><tr class=""><td class="n">6</td>
+<td>pplx-embed 0.6B</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,60 Md</td><td>2026-01</td>
+<td class="n fort">0,970</td><td class="n">0,827</td><td class="n">0,890</td>
+<td class="n">1,46</td><td class="n">0,974</td><td class="n">0,993</td></tr><tr class=""><td class="n">7</td>
+<td>Jina v5 omni small</td><td><span class="tag local">auto-hébergé</span></td><td class="n">1,63 Md</td><td>2026-04</td>
+<td class="n fort">0,970</td><td class="n">0,745</td><td class="n">0,838</td>
+<td class="n">1,67</td><td class="n">0,974</td><td class="n">1,000</td></tr><tr class=""><td class="n">8</td>
+<td>nomic-embed-text v2 MoE</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,48 Md</td><td>2025-02</td>
+<td class="n fort">0,959</td><td class="n">0,819</td><td class="n">0,888</td>
+<td class="n">1,53</td><td class="n">0,959</td><td class="n">0,996</td></tr><tr class=""><td class="n">9</td>
+<td>BGE-m3</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,57 Md</td><td>2024-01</td>
+<td class="n fort">0,959</td><td class="n">0,790</td><td class="n">0,861</td>
+<td class="n">1,92</td><td class="n">0,963</td><td class="n">0,985</td></tr><tr class=""><td class="n">10</td>
+<td>Mistral mistral-embed</td><td><span class="tag api">API</span></td><td class="n">non publiée</td><td>&mdash;</td>
+<td class="n fort">0,952</td><td class="n">0,849</td><td class="n">0,896</td>
+<td class="n">1,65</td><td class="n">0,952</td><td class="n">0,989</td></tr><tr class=""><td class="n">11</td>
+<td>Qwen3-Embedding 0.6B</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,60 Md</td><td>2025-06</td>
+<td class="n fort">0,952</td><td class="n">0,749</td><td class="n">0,843</td>
+<td class="n">1,75</td><td class="n">0,959</td><td class="n">0,989</td></tr><tr class=""><td class="n">12</td>
+<td>Jina v3 (base)</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,57 Md</td><td>2024-09</td>
+<td class="n fort">0,948</td><td class="n">0,797</td><td class="n">0,868</td>
+<td class="n">1,66</td><td class="n">0,974</td><td class="n">1,000</td></tr><tr class=""><td class="n">13</td>
+<td>Granite 311M r2</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,31 Md</td><td>2026-04</td>
+<td class="n fort">0,941</td><td class="n">0,716</td><td class="n">0,817</td>
+<td class="n">2,04</td><td class="n">0,945</td><td class="n">0,996</td></tr><tr class=""><td class="n">14</td>
+<td>GTE multilingual base</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,31 Md</td><td>2024-07</td>
+<td class="n fort">0,930</td><td class="n">0,745</td><td class="n">0,825</td>
+<td class="n">2,20</td><td class="n">0,930</td><td class="n">0,989</td></tr><tr class=""><td class="n">15</td>
+<td>paraphrase-mpnet multi</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,28 Md</td><td>&mdash;</td>
+<td class="n fort">0,930</td><td class="n">0,716</td><td class="n">0,812</td>
+<td class="n">2,14</td><td class="n">0,937</td><td class="n">0,996</td></tr><tr class=""><td class="n">16</td>
+<td>multilingual-e5-large</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,56 Md</td><td>2023-06</td>
+<td class="n fort">0,911</td><td class="n">0,720</td><td class="n">0,810</td>
+<td class="n">2,35</td><td class="n">0,930</td><td class="n">0,989</td></tr><tr class=""><td class="n">17</td>
+<td>paraphrase-MiniLM-L12 multi</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,12 Md</td><td>&mdash;</td>
+<td class="n fort">0,867</td><td class="n">0,620</td><td class="n">0,725</td>
+<td class="n">3,31</td><td class="n">0,875</td><td class="n">0,993</td></tr><tr class=""><td class="n">18</td>
+<td>EmbeddingGemma 300M</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,30 Md</td><td>2025-07</td>
+<td class="n fort">0,838</td><td class="n">0,539</td><td class="n">0,668</td>
+<td class="n">4,17</td><td class="n">0,886</td><td class="n">0,970</td></tr><tr class=""><td class="n">19</td>
+<td>multilingual-e5-small</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,12 Md</td><td>2023-06</td>
+<td class="n fort">0,834</td><td class="n">0,572</td><td class="n">0,691</td>
+<td class="n">3,52</td><td class="n">0,893</td><td class="n">0,985</td></tr><tr class=""><td class="n">20</td>
+<td>all-MiniLM-L6 (anglais seul)</td><td><span class="tag local">auto-hébergé</span></td><td class="n">0,02 Md</td><td>&mdash;</td>
+<td class="n fort">0,827</td><td class="n">0,568</td><td class="n">0,682</td>
+<td class="n">4,52</td><td class="n">0,845</td><td class="n">0,974</td></tr></tbody></table></div>
+<h3>Le seuil de similarité coûte plus qu'il ne rapporte</h3>
+<p class="source">Modèle : <b>Jina v3 SupCon</b>, celui de production &middot; catalogue de 102 claims</p>
+<p>Les chiffres ci-dessus portent sur le rang seul. En production, un filtre supplémentaire écarte les claims
+dont la similarité est inférieure à <b>0,70</b>, avant même d'appeler le LLM. Ce filtre ne peut que faire
+baisser le rappel. Voici ce qu'il coûte et ce qu'il rapporte, avec le modèle de production sur les 102 claims.</p>
+<div class="tbl"><table><thead><tr><th>Seuil</th><th class="n">Bons claims retrouvés</th>
+<th class="n">Narratifs perdus</th><th class="n">Posts sans narratif filtrés</th></tr></thead>
+<tbody><tr><td><b>aucun</b></td><td class="n">0,974</td><td class="n">0 sur 271</td><td class="n">0 sur 62</td></tr><tr><td><b>0,60 &middot; recommandé</b></td><td class="n">0,974</td><td class="n">0 sur 271</td><td class="n">3 sur 62</td></tr><tr><td><b>0,65</b></td><td class="n">0,967</td><td class="n">2 sur 271</td><td class="n">7 sur 62</td></tr><tr class='prod'><td><b>0,70 &middot; actuel</b></td><td class="n">0,926</td><td class="n">13 sur 271</td><td class="n">23 sur 62</td></tr><tr><td><b>0,75</b></td><td class="n">0,819</td><td class="n">42 sur 271</td><td class="n">36 sur 62</td></tr></tbody></table></div>
+<p><b>Comment lire.</b> Les jeux contiennent 271 posts porteurs d'un narratif et 62 posts
+qui n'en expriment aucun. Un <b>narratif perdu</b> est un post dont le bon claim figurait bien dans les
+5 retenus, mais sous le seuil : il est jeté sans que le LLM le voie. Un <b>post sans narratif filtré</b> est un
+appel au reranker évité, donc un risque de faux rattachement supprimé en amont.</p>
+<div class="enc"><p><b>Le réglage actuel échange 13 narratifs perdus contre 23 posts
+vides écartés.</b> À 0,60, le rappel remonte à 0,974, identique à l'absence de seuil, sans
+perdre un seul narratif, tout en écartant encore 3 posts vides.</p></div>
+<p>La raison de fond est que les deux populations se chevauchent. La similarité médiane des posts sans
+narratif vaut 0,732, soit exactement le 10<sup>e</sup> centile des posts porteurs
+(0,732), dont la médiane est 0,833. Aucun seuil ne peut les séparer proprement.</p>
+<div class="enc info"><p><b>Ce seuil est calibré pour ce modèle et pour lui seul.</b> Les échelles de
+similarité diffèrent radicalement d'un modèle à l'autre : au seuil de 0,70, Nemotron tomberait à
+0,000 et OpenAI text-embedding-3-large à 0,022, non par faiblesse mais parce que leurs cosinus
+vivent ailleurs. Tout changement d'embedding imposerait de refaire cette courbe.</p></div>
+<figure class="fig"><figcaption><b>Performance contre taille du modèle</b><span>En haut à gauche : beaucoup de performance pour peu de paramètres. La bande verte marque la zone du modèle de production.</span></figcaption><svg viewBox="0 0 1060 520"><rect x="605" y="34" width="88" height="420" fill="#0E7C66" opacity=".05"/><line x1="78" y1="454" x2="1020" y2="454" stroke="#DFE4EA"/><text x="68" y="458" text-anchor="end" class="axe">0,800</text><line x1="78" y1="349" x2="1020" y2="349" stroke="#DFE4EA"/><text x="68" y="353" text-anchor="end" class="axe">0,850</text><line x1="78" y1="244" x2="1020" y2="244" stroke="#DFE4EA"/><text x="68" y="248" text-anchor="end" class="axe">0,900</text><line x1="78" y1="139" x2="1020" y2="139" stroke="#DFE4EA"/><text x="68" y="143" text-anchor="end" class="axe">0,950</text><line x1="78" y1="34" x2="1020" y2="34" stroke="#DFE4EA"/><text x="68" y="38" text-anchor="end" class="axe">1,000</text><line x1="136" y1="34" x2="136" y2="454" stroke="#EDF1F6"/><text x="136" y="474" text-anchor="middle" class="axe">0,02</text><line x1="279" y1="34" x2="279" y2="454" stroke="#EDF1F6"/><text x="279" y="474" text-anchor="middle" class="axe">0,05</text><line x1="416" y1="34" x2="416" y2="454" stroke="#EDF1F6"/><text x="416" y="474" text-anchor="middle" class="axe">0,12</text><line x1="560" y1="34" x2="560" y2="454" stroke="#EDF1F6"/><text x="560" y="474" text-anchor="middle" class="axe">0,3</text><line x1="668" y1="34" x2="668" y2="454" stroke="#EDF1F6"/><text x="668" y="474" text-anchor="middle" class="axe">0,6</text><line x1="769" y1="34" x2="769" y2="454" stroke="#EDF1F6"/><text x="769" y="474" text-anchor="middle" class="axe">1,14</text><line x1="955" y1="34" x2="955" y2="454" stroke="#EDF1F6"/><text x="955" y="474" text-anchor="middle" class="axe">3,75</text><circle data-info="&lt;b&gt;Jina v4 (int8)&lt;/b&gt;Taille : 3,75 MdRappel@5 : 0,974 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,804MRR : 0,879 &amp;nbsp;|&amp;nbsp; rang moyen : 1,52" cx="955.1" cy="88.2" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><text x="941.1" y="92.2" text-anchor="end" class="pt-lab">Jina v4 (int8)</text><circle data-info="&lt;b&gt;Jina v5 omni small&lt;/b&gt;Taille : 1,63 MdRappel@5 : 0,970 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,745MRR : 0,838 &amp;nbsp;|&amp;nbsp; rang moyen : 1,67" cx="824.7" cy="96.0" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;Nemotron-3-Embed 1B&lt;/b&gt;Taille : 1,14 MdRappel@5 : 0,982 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,823MRR : 0,896 &amp;nbsp;|&amp;nbsp; rang moyen : 1,35" cx="768.7" cy="72.7" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><text x="782.7" y="76.7" text-anchor="start" class="pt-lab">Nemotron-3-Embed 1B</text><circle data-info="&lt;b&gt;pplx-embed 0.6B&lt;/b&gt;Taille : 0,60 MdRappel@5 : 0,970 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,827MRR : 0,890 &amp;nbsp;|&amp;nbsp; rang moyen : 1,46" cx="668.2" cy="96.0" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;Qwen3-Embedding 0.6B&lt;/b&gt;Taille : 0,60 MdRappel@5 : 0,952 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,749MRR : 0,843 &amp;nbsp;|&amp;nbsp; rang moyen : 1,75" cx="668.2" cy="134.7" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle cx="660.2" cy="88.2" r="21" fill="none" stroke="#12496B" stroke-width="2" opacity=".5"/><circle data-info="&lt;b&gt;Jina v3 SupCon (PRODUCTION)&lt;/b&gt;Taille : 0,57 MdRappel@5 : 0,974 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,804MRR : 0,879 &amp;nbsp;|&amp;nbsp; rang moyen : 1,55" cx="660.2" cy="88.2" r="11" fill="#0E7C66" fill-opacity="1" stroke="#fff" stroke-width="2"/><text x="678.2" y="92.2" text-anchor="start" class="pt-lab" font-weight="700">Jina v3 SupCon (PRODUCTION)</text><circle data-info="&lt;b&gt;BGE-m3&lt;/b&gt;Taille : 0,57 MdRappel@5 : 0,959 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,790MRR : 0,861 &amp;nbsp;|&amp;nbsp; rang moyen : 1,92" cx="660.2" cy="119.2" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;Jina v3 (base)&lt;/b&gt;Taille : 0,57 MdRappel@5 : 0,948 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,797MRR : 0,868 &amp;nbsp;|&amp;nbsp; rang moyen : 1,66" cx="660.2" cy="142.5" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;multilingual-e5-large&lt;/b&gt;Taille : 0,56 MdRappel@5 : 0,911 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,720MRR : 0,810 &amp;nbsp;|&amp;nbsp; rang moyen : 2,35" cx="657.4" cy="220.0" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;nomic-embed-text v2 MoE&lt;/b&gt;Taille : 0,48 MdRappel@5 : 0,959 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,819MRR : 0,888 &amp;nbsp;|&amp;nbsp; rang moyen : 1,53" cx="633.3" cy="119.2" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;Granite 311M r2&lt;/b&gt;Taille : 0,31 MdRappel@5 : 0,941 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,716MRR : 0,817 &amp;nbsp;|&amp;nbsp; rang moyen : 2,04" cx="564.8" cy="158.0" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;GTE multilingual base&lt;/b&gt;Taille : 0,31 MdRappel@5 : 0,930 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,745MRR : 0,825 &amp;nbsp;|&amp;nbsp; rang moyen : 2,20" cx="564.8" cy="181.2" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;EmbeddingGemma 300M&lt;/b&gt;Taille : 0,30 MdRappel@5 : 0,838 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,539MRR : 0,668 &amp;nbsp;|&amp;nbsp; rang moyen : 4,17" cx="559.7" cy="375.0" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;paraphrase-mpnet multi&lt;/b&gt;Taille : 0,28 MdRappel@5 : 0,930 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,716MRR : 0,812 &amp;nbsp;|&amp;nbsp; rang moyen : 2,14" cx="548.9" cy="181.2" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><circle data-info="&lt;b&gt;paraphrase-MiniLM-L12 multi&lt;/b&gt;Taille : 0,12 MdRappel@5 : 0,867 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,620MRR : 0,725 &amp;nbsp;|&amp;nbsp; rang moyen : 3,31" cx="416.2" cy="313.0" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><text x="430.2" y="317.0" text-anchor="start" class="pt-lab">paraphrase-MiniLM-L12 multi</text><circle data-info="&lt;b&gt;multilingual-e5-small&lt;/b&gt;Taille : 0,12 MdRappel@5 : 0,834 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,572MRR : 0,691 &amp;nbsp;|&amp;nbsp; rang moyen : 3,52" cx="416.2" cy="382.7" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><text x="430.2" y="386.7" text-anchor="start" class="pt-lab">multilingual-e5-small</text><circle data-info="&lt;b&gt;all-MiniLM-L6 (anglais seul)&lt;/b&gt;Taille : 0,02 MdRappel@5 : 0,827 &amp;nbsp;|&amp;nbsp; Rappel@1 : 0,568MRR : 0,682 &amp;nbsp;|&amp;nbsp; rang moyen : 4,52" cx="135.7" cy="398.2" r="7" fill="#0E7C66" fill-opacity="0.82" stroke="#fff" stroke-width="2"/><text x="149.7" y="402.2" text-anchor="start" class="pt-lab">all-MiniLM-L6 (anglais seul)</text><text x="549" y="510" text-anchor="middle" class="axe-t">TAILLE DU MODELE EN MILLIARDS DE PARAMETRES, ECHELLE LOG</text><text x="18" y="244" transform="rotate(-90 18 244)" text-anchor="middle" class="axe-t">RAPPEL@5, TEST 3</text></svg><p class="aide">Seuls les points remarquables sont etiquetes. Survolez n'importe quel point pour son detail.</p><div class="bulle"></div></figure>
+</div></section><section id="conclusions"><div class="wrap">
+<h2><span class="num">07</span>Ce que ces chiffres changent</h2>
+<h3 class="ok">1. L'embedding n'est pas le facteur limitant</h3>
+<p>Le modèle de production atteint <b>0,974</b> de rappel@5 sur le catalogue de
+102 claims, quand le meilleur reranker LLM du benchmark plafonne à
+0,919 de classification. Il reste donc de la marge au-dessus : l'écart entre les
+meilleurs LLM n'était pas bridé par l'embedding.</p>
+<div class="enc ok"><p><b>Conclusion opérationnelle : aucune revectorisation de la base ne se justifie.</b>
+C'est l'opération la plus lourde du pipeline, et les chiffres ne la demandent pas.</p></div>
+
+<h3 class="ok">2. Le modèle de production a le meilleur rapport taille sur performance</h3>
+<p>Il est 5<sup>e</sup> sur 20 avec <b>0,57 milliard de paramètres</b>, la plus
+petite taille du haut de tableau. Il fait jeu égal avec des modèles jusqu'à
+6.6 fois plus gros, et n'est qu'à
+0,011 du premier, qui est une API externe.</p>
+<p>Le fine-tuning maison se justifie également : la version de base du même modèle plafonne à
+0,948, soit <b>0,026 de moins</b>.</p>
+
+<h3>3. Monter de version ne suffit pas</h3>
+<p>Jina v5 omni small, sorti en avril 2026, est le successeur direct du modèle de production. Il fait
+<b>moins bien</b> en rappel@1 : 0,745 contre 0,804, pour presque trois fois la taille.
+Le seul concurrent local crédible est Nemotron-3-Embed 1B, sorti en juillet 2026, à 0,982,
+et son avantage réel porte sur le rappel@1 : 0,823.</p>
+
+<h3 class="info">4. Le résultat le plus contre-intuitif</h3>
+<p>À conditions identiques, catalogue d'origine et même métrique que le benchmark LLM, la <b>similarité seule,
+sans aucun LLM</b>, obtient <b>0,892</b> de F1 de classification. Le reranker de production,
+Qwen3.5 4B (local vLLM), obtient 0,854.</p>
+<div class="enc"><p><b>Pour choisir le bon claim parmi les candidats, appeler le reranker actuel dégrade le
+résultat au lieu de l'améliorer.</b> On ne peut pas le retirer pour autant, et la raison est ailleurs.</p></div>
+<h4>La similarité ne sait pas dire "aucun"</h4><p class="source">Modèle : <b>Jina v3 SupCon</b>, celui de production &middot; catalogue de 102 claims</p>
+<p>Elle renvoie toujours quelque chose. Le seul levier disponible est un seuil, et il est mauvais. Mesuré avec le modèle de production sur le catalogue complet de 102 claims :</p><div class="tbl"><table><thead><tr><th>Seuil</th><th class="n">F1 de rejet</th><th class="n">Posts sans narratif écartés</th><th class="n">Posts porteurs perdus</th></tr></thead><tbody><tr><td>0,30</td><td class="n">0,000</td><td class="n">0 / 62</td><td class="n">0 / 271</td></tr><tr><td>0,40</td><td class="n">0,000</td><td class="n">0 / 62</td><td class="n">0 / 271</td></tr><tr><td>0,50</td><td class="n">0,000</td><td class="n">0 / 62</td><td class="n">0 / 271</td></tr><tr><td>0,60</td><td class="n">0,092</td><td class="n">3 / 62</td><td class="n">0 / 271</td></tr><tr><td>0,65</td><td class="n">0,194</td><td class="n">7 / 62</td><td class="n">3 / 271</td></tr><tr><td>0,70</td><td class="n">0,469</td><td class="n">23 / 62</td><td class="n">13 / 271</td></tr><tr><td>0,75</td><td class="n">0,522</td><td class="n">36 / 62</td><td class="n">40 / 271</td></tr></tbody></table></div><p>Au mieux <b>0,526</b>, atteint au seuil 0,72, en jetant au passage 22 posts porteurs sur 271. Le reranker de production fait 0,591, et le meilleur LLM du benchmark 0,874 (OpenAI GPT-5.6 Luna).</p><h3 class="info">5. Peut-on se passer du reranker&nbsp;?</h3>
+<p class="source autre">Modèle : <b>OpenAI text-embedding-3-large</b>, pas celui de production &middot; catalogue de 102 claims</p>
+<p>Question posée directement : si l'embedding place le bon claim en tête 87 fois sur 100, un simple seuil
+suffit-il à écarter les posts qui n'expriment aucun narratif&nbsp;? Testé sur le meilleur embedding du panel,
+OpenAI text-embedding-3-large, en ne gardant que le claim le plus proche. Attention, ce tableau change de modèle d'embedding : les seuils ne se comparent pas à ceux des tableaux précédents, les échelles de similarité étant propres à chaque modèle.</p>
+<div class="tbl"><table><thead><tr><th>Configuration</th><th class="n">Classification</th>
+<th class="n">Rejet</th></tr></thead><tbody>
+<tr><td>OpenAI 3-large, top-1, seuil 0,495, <b>sans reranker</b></td>
+<td class="n">0,762</td><td class="n">0,590</td></tr>
+<tr class="prod"><td>Jina v3 SupCon + reranker Qwen3.5 4B <b>(production)</b></td>
+<td class="n">0,854</td><td class="n">0,591</td></tr>
+<tr><td>Jina v3 SupCon + GPT-5.6 Luna (meilleur du benchmark)</td>
+<td class="n">0,907</td><td class="n">0,874</td></tr>
+</tbody></table></div>
+<div class="enc"><p><b>Un seuil bien calibré égale notre reranker actuel sur le rejet, 0,590 contre
+0,591.</b> Mais il le paie 92 points de classification, parce
+qu'un seuil ne sait pas rejeter sans jeter aussi de vrais narratifs : à 0,495 il écarte
+49 des 62 posts vides, mais perd 55 narratifs sur 271.</p></div>
+<p>Sans seuil, la classification atteindrait 0,878, au-dessus de la chaîne de
+production. Chaque cran de seuil l'érode : le paramètre n'a qu'un degré de liberté quand la décision en
+demande deux. Et l'exigence de zéro faux rattachement est hors d'atteinte, il faudrait monter à
+0,60 et perdre 204 narratifs sur 271.</p>
+<p>Le pouvoir de séparation est pourtant réel : l'AUC vaut 0,866, c'est-à-dire qu'entre un post
+porteur et un post vide tirés au hasard, le porteur a la similarité la plus élevée 86 fois sur
+100. Ça ne suffit pas, parce que distinguer un post qui affirme une thèse d'un post qui parle du même sujet
+sans rien affirmer demande de lire le texte, pas de mesurer une distance.</p>
+<div class="enc info"><p><b>Conclusion : le reranker actuel n'apporte rien de plus qu'un seuil sur l'axe du
+rejet.</b> C'est un argument pour le remplacer, pas pour le supprimer. L'écart entre 0,590 et les
+0,874 du meilleur LLM mesure exactement la part de la décision qui exige de comprendre le texte.</p></div>
+<h3 class="ok">Ce que nous recommandons</h3>
+<ul class="propre">
+<li><b>Garder le modèle d'embedding actuel.</b> Aucun concurrent ne justifie le coût d'une revectorisation
+complète de la base.</li>
+<li><b>Descendre le seuil de similarité de 0,70 à 0,60.</b> Le rappel passe de
+0,926 à 0,974, soit 13 narratifs récupérés, au prix de
+20 posts vides supplémentaires à écarter par le reranker. Aucun développement,
+un seul paramètre.</li>
+<li><b>Juger le reranker sur sa capacité de rejet.</b> C'est là que le modèle actuel est le plus faible
+(0,591) et que les écarts entre LLM sont réels.</li>
+<li><b>Étudier une architecture où le LLM ne fait que la décision d'acceptation</b>, le choix du claim étant
+laissé à la similarité. Question plus simple posée au modèle, prompt plus court, et c'est exactement là que
+le LLM apporte quelque chose.</li>
+</ul></div></section><section id="limites"><div class="wrap">
+<h2><span class="num">08</span>Limites et contrôles</h2>
+<h3 class="ok">Les quatre contrôles passés sur les 20 mesures</h3>
+<ul class="propre">
+<li><b>Métriques recalculées depuis les données brutes.</b> Chaque fichier de résultat contient la position du
+bon claim pour chacun des 271 posts. Les métriques ont été recalculées à partir de ces
+positions et comparées aux valeurs enregistrées : identiques à 1e-9 près.</li>
+<li><b>Tailles vérifiées.</b> 271 posts et 102 claims dans les
+20 fichiers, sans exception.</li>
+<li><b>Monotonie.</b> Le rappel doit baisser quand le catalogue grossit. La condition test 1 &ge; test 2 &ge;
+test 3 est respectée partout. Une violation aurait trahi un mélange de mesures.</li>
+<li><b>Empreinte de catalogue unique.</b> Chaque mesure enregistre une empreinte du catalogue utilisé. Les
+20 portent la même, donc aucune n'a été faite sur une version différente.</li>
+</ul>
+<div class="enc ok"><p><b>Aucune anomalie détectée.</b> Cette page est générée directement depuis les fichiers
+de mesure : aucun chiffre n'y est saisi à la main, et les 120 valeurs du tableau ont été relues depuis
+la page finale puis recomparées à leur source.</p></div>
+<h3>Ce que ces chiffres ne disent pas</h3>
+<ul class="propre">
+<li><b>Le catalogue reste petit.</b> 102 claims contre 100 à 700 pour une analyse réelle en
+production. Les valeurs présentées sont des <b>bornes hautes</b>.</li>
+<li><b>Jina v4 est mesuré en quantification 8 bits</b>, la mention figure dans son nom. Il pèse 7,5 Go en
+précision normale pour 7,6 Go de mémoire disponible sur la carte de test : il n'y rentre pas, ce qui est en soi
+un résultat sur sa déployabilité.</li>
+<li><b>Le rappel@1 a une marge de reproductibilité d'environ 0,004.</b> Réencoder les mêmes
+textes en regroupant les lots autrement fait changer de rang 2 posts sur 271, un effet connu des
+transformeurs lié au remplissage des séquences. Le rappel@5, qui porte toutes les conclusions, est
+strictement stable.</li>
+<li><b>La qualité de la vérité terrain n'est pas mesurée.</b> Il n'existe pas d'accord inter-annotateur
+documenté sur ces trois jeux. Une partie des échecs peut venir d'annotations discutables plutôt que des
+modèles.</li>
+<li><b>Les 62 posts sans narratif ont été réannotés contre le catalogue élargi.</b> Ils avaient
+été étiquetés « aucun narratif » à l'époque où seuls les 19 claims d'origine existaient. Chacun a donc été
+réexaminé face au claim ajouté le plus proche, et les 12 cas les plus ambigus face à leurs trois plus proches :
+<b>aucun n'exprime l'un des 83 claims ajoutés</b>. Les motifs de rejet sont conservés dans
+<code>annotation_negatifs_vs_claims_ajoutes.csv</code>. Ces posts restent donc de vrais négatifs.</li>
+<li><b>Les claims générés restent une construction.</b> Validés par trois vérifications indépendantes, ils se
+sont avérés aussi gênants que les vrais claims de production, mais ils ne remplacent pas une base réelle à
+grande échelle.</li>
+</ul></div></section><footer><div class="wrap">
+<p><b>Méthode.</b> 20 modèles, 271 posts porteurs, 62 posts
+hors-narratif écartés de la mesure, catalogue final de 102 claims dont 83 ajoutés et
+validés. Chaque modèle est chargé, mesuré, puis la mémoire est libérée avant le suivant. Les résultats sont
+écrits sur disque modèle par modèle et portent une empreinte du catalogue, ce qui rend la campagne reprenable
+et interdit de mélanger deux versions du protocole.</p>
+<p>Page générée automatiquement depuis les fichiers de mesure &middot;
+<a href="https://opsci.ai" target="_blank" rel="noopener">opsci.ai</a></p>
+</div></footer>
+<script>
+document.querySelectorAll('.fig').forEach(function(f){
+  var b = f.querySelector('.bulle'); if(!b) return;
+  f.querySelectorAll('[data-info]').forEach(function(el){
+    el.addEventListener('mouseenter', function(ev){
+      b.innerHTML = el.getAttribute('data-info').split('\n').join('<br>')
+        .replace(/<\/b>/, '</b><br>');
+      b.classList.add('on');
+    });
+    el.addEventListener('mousemove', function(ev){
+      var r = f.getBoundingClientRect();
+      var x = ev.clientX - r.left + 16, y = ev.clientY - r.top + 14;
+      if (x + 300 > r.width) x = ev.clientX - r.left - 306;
+      b.style.left = x + 'px'; b.style.top = y + 'px';
+    });
+    el.addEventListener('mouseleave', function(){ b.classList.remove('on'); });
+  });
+});
+</script></body></html>
